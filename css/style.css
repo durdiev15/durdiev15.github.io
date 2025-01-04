@@ -31,4 +31,41 @@ body {
     color: white;
     padding: 10px;
   }
+
+  li {
+    margin-bottom: 10px; /* Add spacing between items */
+  }
+
+  .project-list {
+    list-style-type: none; /* Remove bullet points */
+    padding: 10px; /* Remove default padding */
+    margin: 0; /* Remove default margin */
+  }
+  
+  .project-list li {
+    margin-bottom: 10px; /* Add spacing between items */
+  }
+  
+  .project-list a {
+    text-decoration: none; /* Remove underline from links */
+    color: #007bff; /* Use a nice blue color for links */
+    font-weight: bold; /* Make links stand out */
+    transition: color 0.3s ease; /* Add smooth hover effect */
+  }
+  
+  .project-list a:hover {
+    color: #0056b3; /* Darken color on hover */
+  }
+  
+  .project-list li {
+    background-color: #f9f9f9; /* Add a light background for each item */
+    padding: 10px; /* Add spacing inside each item */
+    border-radius: 5px; /* Round the corners */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Add subtle shadow for depth */
+  }
+  
+  .project-list li:hover {
+    background-color: #e9ecef; /* Lightly highlight item on hover */
+  }
+  
   
