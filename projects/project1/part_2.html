@@ -7523,16 +7523,17 @@ a.anchor-link {
   }
   /* Table of Contents fixed position */
   .toc {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 270px;
-      height: 100%;
-      overflow-y: auto;
-      background-color: #f9f9f9;
-      padding: 20px;
-      border-right: 1px solid #ddd;
-    }
+    position: fixed; /* Keep the TOC fixed on the left */
+    top: 110px; /* Push it below the header */
+    left: 0;
+    width: 270px; /* Adjust the width of the TOC */
+    height: calc(100% - 70px); /* Adjust height to fit below the header */
+    overflow-y: auto; /* Add scroll if the TOC content exceeds its height */
+    background-color: #fff;
+    border-right: 1px solid #ccc;
+    padding: 10px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
     @media (max-width: 768px) {
   .toc {
     position: relative;
@@ -7546,9 +7547,20 @@ a.anchor-link {
   }
 </style>
 <!-- End of mermaid configuration --></head>
-<body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
-  <div class="container">
-<main>
+<body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light"
+      style="margin: 0; padding: 0;">
+  <header style="position: fixed; top: 0; left: 0; width: 100%; background-color: #01579b; color: white; padding: 10px 20px; text-align: center; z-index: 1000; font-size: 16px; font-family: Arial, sans-serif;">
+    <h1>
+      Project: Automobile Data Analysis and Modeling (Part 2)
+    </h1>
+    <nav>
+        <a href="../../index.html" style="color: white; margin: 0 10px; text-decoration: none;">Home</a>
+        <a href="../../projects.html" style="color: white; margin: 0 10px; text-decoration: none;">Projects</a>
+    </nav>
+  </header>
+<main style="margin-top: 100px;">
+  <section>
+      <div class="container">
 <div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
@@ -10426,6 +10438,32 @@ dtype: object</pre>
 </div>
 </div>
 </div>
+</section>
 </main>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // Select all TOC links
+    const tocLinks = document.querySelectorAll(".toc a");
+
+    tocLinks.forEach(link => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault(); // Prevent default anchor behavior
+        const targetId = link.getAttribute("href").substring(1); // Get the target ID
+        const targetElement = document.getElementById(targetId);
+
+        if (targetElement) {
+          const offset = 130; // Adjust this to match your header's height
+          const topPosition = targetElement.getBoundingClientRect().top + window.scrollY - offset;
+
+          // Scroll to the adjusted position
+          window.scrollTo({
+            top: topPosition,
+            behavior: "smooth"
+          });
+        }
+      });
+    });
+  });
+</script>
 </body>
 </html>

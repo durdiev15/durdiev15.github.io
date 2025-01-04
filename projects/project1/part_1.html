@@ -5764,7 +5764,7 @@ Note: input and output wrappers have "display: block" propery in print mode.
 /* Hidden by zero height by default */
 .jp-CellHeader,
 .jp-CellFooter {
-  height: 0;
+  height: 0px;
   width: 100%;
   padding: 0;
   margin: 0;
@@ -7520,6 +7520,7 @@ a.anchor-link {
   margin: 0 auto !important;
   padding: 20px !important;
   margin-left: 270px !important; /* TOC width + padding */
+  bottom: 50px !important;
 }
   /* Table of Contents fixed position */
   .toc {
@@ -7545,14 +7546,11 @@ a.anchor-link {
   .content {
     margin-left: 10px;
   }
-
-h1::before, h2::before, h3::before, h4::before, h5::before, h6::before {
-  content: "";
-  display: block;
-  height: 120px; /* Match your header height */
-  margin-top: -120px;
+  footer {
+    position: relative; /* Ensure it's part of the normal flow */
+    z-index: 10; /* Set a higher stacking order if needed */
 }
-    }
+}
 </style>
 
 <!-- End of mermaid configuration --></head>
@@ -10414,6 +10412,8 @@ Name: count, dtype: int64</pre>
     });
   });
 </script>
-
+<footer>
+  <p>&copy; 2025 Dilshod Durdiev</p>
+</footer>
 </body>
 </html>
