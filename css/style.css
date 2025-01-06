@@ -118,19 +118,19 @@ body {
   /* Heading styles specific to the container */
   .container h1 {
     font-size: 34px;
-    color: #0056b3;
+    color: #01579b;
   }
   .container h2 {
     font-size: 28px;
-    color: #0056b3;
+    color: #01579b;
   }
   .container h3 {
     font-size: 22px;
-    color: #0056b3;
+    color: #01579b;
   }
   .container h4 {
     font-size: 20px;
-    color: #0056b3;
+    color: #01579b;
   }
 
   .algorithm {

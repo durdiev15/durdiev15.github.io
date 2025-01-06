@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phase-Field Modeling and Simulation of Ferroelectric Domain Evolution</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        }
+    };
+</script>
+
+  <!-- <script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js"></script> -->
+    <!-- Highlight.js CSS for a theme (e.g., "Atom One Dark") -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-light.min.css" rel="stylesheet" />
+    <!-- Highlight.js JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</head>
+<body>
+  <header style="position: fixed; width: 100%;">
+    <h1>Phase-Field Simulation of Ferroelectric Domain Evolution (Part 2)</h1>
+    <nav>
+        <a href="../../index.html">Home</a>
+        <a href="../../projects.html">Projects</a>
+    </nav>
+  </header>
+
+  <main>
+    <section style="margin-top: 100px;">
+        <!-- <nav id="toc"> -->
+        <div class="toc">
+            <h1 style="color: #01579b; font-weight: bold; font-size: 30px;"> Table of Contents</h1>
+            <ul>
+                <li><a href="#introduction"> Part 2: Numerical Implementation</a></li>
+                
+                <ul>
+                  <li><a href="#section1">Non-Dimensionalization</a></li>
+                    <li><a href="#fourier_frequency">Fourier Frequency</a></li>
+                    <li><a href="#green_function">Green's Function</a></li>
+                    <li><a href="#solver">FFT-based Solver</a></li>
+                    <li><a href="#calculate_derivatives">Calculating Derivatives</a></li>
+                </ul>
+                <li><a href="#numerical_implementation">2. Numerical Implementation with FFT</a></li>
+                <ul>
+                    <li><a href="#solving_cont_equations">2.1 Solving Constitutive Equations</a></li>
+                    <ul>
+                        <li><a href="#piezo_algorithm">2.1.1 FFT-based Algorithm</a></li>
+                    </ul>
+                    <li><a href="#solving_phase_field_equation">2.2 Solving Phase-Field Equation</a></li>
+                </ul>
+            </ul>
+        </div>
+        <!-- </nav> -->
+    </section>
+
+    <div class="container">
+        <section id="introduction">
+            <h1>Part 2: Numerical Implementation</h1>
+            <p>
+                In <a href="part_1.html" target="_blank">Part-1</a>, we developed the phase-field model, derived the governing equations, and introduced the Fourier spectral method. We also built algorithms to solve the coupled piezoelectric equations and a semi-implicit algorithm for the time-dependent Ginzburg-Landau equation.
+            </p>
+            <p>
+                Now, in Part-2, we will implement these algorithms in Python using 
+                <b>PyTorch</b>. While PyTorch is widely known as a machine learning library, 
+                it offers powerful tools like Fast Fourier Transform (FFT) and Einstein summation, 
+                which are faster than their counterparts in NumPy or SciPy. Moreover, 
+                PyTorch allows us to run computations on GPUs, enabling significant acceleration 
+                by submitting scripts as jobs on a GPU cluster. This makes PyTorch an excellent choice for our simulations.
+            </p>
+        </section>
+
+        <section id="section1">
+            <h1>Non-Dimensionalization</h1>
+            <p>
+              Non-dimensionalization is a crucial step when working with equations in simulations, 
+              especially in phase-field modeling of ferroelectric domains. By removing units from the equations, 
+              we simplify the mathematics and make the simulation more general. This step helps ensure that the results 
+              can be easily scaled to different physical systems and reduces the chance of numerical errors due to the 
+              large or small magnitudes of physical constants.
+            </p>
+            <p>
+              Once we non-dimensionalize the equations, they are ready for numerical implementation. 
+              The dimensionless form ensures that the computations are efficient and robust, regardless of the 
+              specific physical scale of the system being studied. Next, we will show how to apply non-dimensionalization 
+              to the governing equations step by step, preparing them for use in our simulations.
+            </p>
+            <p>
+              So, we have the following phase-field equation:
+              \begin{equation}\label{app:PFeq}
+              \beta\frac{\partial P_i}{\partial t}= \kappa_{\rm grad} \frac{G l}{P_0^2} P_{i,jj} - \kappa_{\rm sep}\frac{G}{l} \frac{\partial\tilde{\psi}}{\partial P_i}-\frac{\partial H^{\rm bulk}}{\partial P_i} .
+              \end{equation}
+              The physical quantities we have are polarization ($P$ and $P_0$), 
+              mobility coefficient ($\beta$), domain wall width ($l$), domain wall energy ($G$), time ($t$) and energy density $H$.
+              Their units are:
+              \begin{equation}\label{app:units}
+                  P, P_0\rightarrow \bigg[\frac{\text{C}}{\text m^2}\bigg], 
+                  \quad \beta^{-1}\rightarrow\bigg[\frac{\text J \text m \text s}{\text C^2}\bigg],  
+                  \quad G \rightarrow \bigg[\frac{\text J}{\text m^2}\bigg], 
+                  \quad H\rightarrow\bigg[\frac{\text J}{\text m^3}\bigg]
+              \end{equation}
+              Dimensionless forms of the quantities follow from division by a relevant scaling parameter (subscript s),
+              \begin{equation*}
+                  \begin{split}
+                    \tilde{P}=\frac{P}{P_s}, 
+                    \quad \tilde{t}=\frac{t}{t_s}, 
+                    \quad \tilde{H}=\frac{H}{H_s} 
+                    \quad \tilde{  r}=\frac{  r}{r_s}, 
+                    \quad \tilde \beta = \frac{\beta}{\beta_s}
+                \end{split}
+              \end{equation*}
+              which we choose here as
+              \begin{equation*}
+                  P_s = P_0, 
+                  \quad t_s=10^{-12} \; [\text{s}], 
+                  \quad H_s = \frac{G}{l}, 
+                  \quad r_s=l, 
+                  \quad \beta_s = \frac{G t_s}{lP_0^2}
+              \end{equation*}
+              then
+              \begin{equation}
+              \tilde{\beta} \frac{G t_s}{lP_0^2} \frac{P_0}{t_s}\frac{\partial \tilde P_i}{\partial \tilde t} = 
+              \kappa_{\rm grad} \frac{G l}{P_0^2} \frac{P_0}{l^2} \tilde P_{i,jj} 
+              - \kappa_{\rm sep}\frac{G}{l} \frac{1}{P_0}\frac{\partial\tilde{\psi}}{\partial \tilde P_i}
+              - \frac{G}{lP_0}\frac{\partial \tilde H^{\rm bulk}}{\partial \tilde P_i}.
+              \end{equation}
+              Finally, our non-dimensionalized phase-field equation is 
+              \begin{equation}
+              \tilde{\beta}\frac{\partial \tilde P_i}{\partial \tilde t} = 
+              \kappa_{\rm grad} \tilde P_{i,jj} 
+              - \kappa_{\rm sep}\frac{\partial\tilde{\psi}}{\partial \tilde P_i}
+              - \frac{\partial \tilde H^{\rm bulk}}{\partial \tilde P_i}.
+              \end{equation}
+            </p>
+            
+        </section>
+
+        <section id="fourier_frequency">
+            <h2>
+                Fourier Frequency
+            </h2>
+            <p> Fourier frequencies represent the wavevector components corresponding to the discretized grid. 
+              In our simulations, we compute these frequencies using the FFT in 3D space.
+            </p>
+            <p>
+              The Python function <code>fourier_frequency.py</code> provided calculates the Fourier frequencies for a 3D grid using PyTorch. 
+              It takes the number of grid points and grid spacing in each spatial direction as inputs, along 
+              with the computation device (CPU or GPU). The function then uses the <code>torch.fft.fftfreq</code> method 
+              to compute the sample frequencies for each direction (x, y, z) and combines them into a 3D tensor grid.
+            </p>
+<pre><code class="language-python">import torch
+
+def fourier_frequencies(Nx:int, dx:float, Ny:int, dy:float, Nz:int, dz:float, device:torch.device):
+    """
+    Computes the FFT sample frequencies for a 3D
+
+    Nx, Ny, Nz - number of grid points in each direction
+
+    dx, dy, dz - grid spacing in each direction
+
+    device - torch device; "cpu" or "cuda"
+    """
+    # in x-direction
+    kx = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Nx, dx)).to(device)
+
+    # in y-direction
+    ky = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Ny, dy)).to(device)
+
+    # in z-direction
+    kz = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Nz, dz)).to(device)
+
+    # Create grids of coordinates
+    kx_grid, ky_grid, kz_grid = torch.meshgrid(kx, ky, kz, indexing = 'ij')
+
+    # Concatenates a sequence of tensors
+    freq = torch.stack((kx_grid, ky_grid, kz_grid))
+
+    # Clean up
+    del kx, ky, kz, kx_grid, ky_grid, kz_grid
+
+    return freq
+</code></pre>     
+<p>
+  In Python, memory management is crucial, especially when working with large datasets or simulations. 
+  Using <code>del</code> to delete variables that are no longer needed helps free up memory. 
+  This is particularly important when dealing with large arrays or tensors, as these can consume 
+  significant amounts of memory.
+</p>
+        </section>
+
+<section id="green_function">
+<h2>
+  Green's Function
+</h2>
+<p>
+  In <a href="part_1.html" target="_blank">Part-1</a>, 
+  we demonstrated how to calculate the Green's functions in Fourier space. 
+  Now, we present the Python code to implement these calculations. 
+  After some derivations, we arrived at the following expressions:
+\begin{equation}\label{b12}
+    \begin{split}
+        \hat{\Gamma}_{ijkl}^0 &= \frac{1}{4}(A_{ik}^{-1}\xi_l\xi_j + A_{il}^{-1}\xi_k\xi_j + A_{jl}^{-1}\xi_k\xi_i + A_{jl}^{-1}\xi_k\xi_i )
+        \\
+        \hat{\Phi}^0_{nij} &= \frac{1}{2} (A_{4j}^{-1}\xi_i\xi_n + A_{4i}^{-1}\xi_j\xi_n)
+        \\
+        \hat{\Lambda}_{ni}^0 &= A_{44}^{-1} \xi_n \xi_i.
+    \end{split}
+\end{equation}
+</p>
+<p>
+  Here, we use a Python module called <code>greens_function.py</code> to compute these Green's functions efficiently. 
+  It is important to note that the calculations require only volume-averaged material tensors,
+   specifically the stiffness, piezoelectric, and dielectric tensors.
+</p>
+<p>
+  With these expressions and the code, we can directly compute the Green's functions needed for our simulations.
+</p>
+<pre><code class="language-python">import torch
+import itertools
+
+def Green_Operator(C0:torch.Tensor, e0:torch.Tensor, K0:torch.Tensor,
+                                            n:torch.Tensor, Nx:int, Ny:int, Nz:int, device:torch.device):
+
+    """
+    Calculates the Green's functions in Fourier spaces
+
+    C0, e0, K0 - homogeneous material's stiffness, piezoelectric and dielectric tesnors
+
+    n - Fourier frequencies
+
+    Nx, Ny, Nz - number of grid points in each direction
+
+    device - torch device; "cpu" or "cuda"
+    """
+
+    A_c = torch.einsum('pijq, p ..., q ... -> ij ...', C0, n, n)
+    A_e = torch.einsum('piq, p ..., q ... -> i ...', e0, n, n)
+    A_d = torch.einsum('pq, p ..., q ...', K0, n, n)
+
+    # make the first element one
+    A_d[0, 0, 0] = 1.0
+
+    # Total matrix
+    A = A_c + 1 / A_d * torch.einsum('i ..., j ... -> ij ...', A_e, A_e)
+
+    # Find the inverse of A
+    G = torch.einsum('ij ... -> ji ...', A)
+
+    adjG = torch.empty_like(A, dtype=torch.float32)
+    adjG[0,0] = G[1,1] * G[2,2] - G[1,2] * G[2,1]
+    adjG[0,1] = -(G[1,0] * G[2,2] - G[1,2] * G[2,0])
+    adjG[0,2] = G[1,0] * G[2,1] - G[1,1] * G[2,0]
+    adjG[1,0] = -(G[0,1] * G[2,2] - G[0,2] * G[2,1])
+    adjG[1,1] = G[0,0] * G[2,2] - G[0,2] * G[2,0]
+    adjG[1,2] = -(G[0,0] * G[2,1] - G[0,1] * G[2,0])
+    adjG[2,0] = G[0,1] * G[1,2] - G[0,2] * G[1,1]
+    adjG[2,1] = -(G[0,0] * G[1,2] - G[0,2] * G[1,0])
+    adjG[2,2] = G[0,0] * G[1,1] - G[0,1] * G[1,0]
+
+    # Determinant of A
+    detG = A[0,0] * (A[1,1] * A[2,2] - A[1,2] * A[2,1]) \
+              - A[0,1] * (A[1,0] * A[2,2] - A[1,2] * A[2,0]) \
+                  + A[0,2] * (A[1,0] * A[2,1] - A[1,1] * A[2,0])
+    detG[0,0,0] = 1.0
+
+    # Inverse of A
+    invA = adjG/detG
+
+    # Green's function of the stiffness tensor in Fourier space
+    G_elas = torch.zeros((3, 3, 3, 3, Nx, Ny, Nz), dtype=torch.float32).to(device)
+    for i,j,k,l in itertools.product(range(3), repeat=4):
+        G_elas[i,j,k,l] = 0.25 * (invA[i, l] * n[k] * n[j] +
+                                  invA[j, l] * n[k] * n[i] +
+                                  invA[i, k] * n[l] * n[j] +
+                                  invA[j, k] * n[i] * n[l])
+
+    # Green's function of the piezoelectric tensor in Fourier space
+    G_piezo = torch.zeros((3, 3, 3, Nx, Ny, Nz), dtype=torch.float32).to(device)
+    for k,i,j in itertools.product(range(3), repeat=3):
+        G_piezo[k,i,j] = 1/(2 * A_d) * n[k] * (invA[i, 0] * n[j] + invA[j, 0] * n[i]) * A_e[0] + 
+                         1/(2 * A_d) * n[k] * (invA[i, 1] * n[j] + invA[j, 1] * n[i]) * A_e[1] + 
+                         1/(2 * A_d) * n[k] * (invA[i, 2] * n[j] + invA[j, 2] * n[i]) * A_e[2]
+
+    # Green's function of the dielectric tensor in Fourier space
+    aga = torch.einsum('i..., ij..., j...', A_e, invA, A_e)
+    G_dielec = 1/(A_d**2) * (aga - A_d) * torch.einsum('i ..., j ... -> ij ...', n, n)
+
+    # delete unused tensors - save more memory
+    del aga, invA, G, adjG, A_c, A_e, A_d
+
+    # return the greens tensors
+    return G_elas, G_piezo, G_dielec
+</code></pre>
+
+</section>
+
+<section id="solver">
+    <h2>FFT-based Solver</h2>
+<p>
+  In the previous part of this project, we developed the FFT-based algorithm. Now, we implement this algorithm in Python. 
+  Since we have already calculated the Green's functions, we can directly compute the strain and electric fields. 
+  This algorithm is versatile and can be applied not only to ferroelectric materials but also to other piezoelectric materials, 
+  as it solves the coupled piezoelectric constitutive equations. The algorithm calculates the residuals for stress and electric displacement, 
+  and the iterations stop when the maximum residual or error falls below a specified tolerance. In this case, we use a tolerance of 
+  <code>tol=1e-4</code>. And let's call it <code>solver.py</code>
+</p>
+<pre><code class="language-python">import torch
+from torch.fft import fftn as fft, ifftn as ifft
+
+import math
+import sys
+
+def Solve_Piezoelectricity(C0:torch.Tensor, K0:torch.Tensor , e0:torch.Tensor, eP:torch.Tensor,
+                                G_elas:torch.Tensor, G_piezo:torch.Tensor, G_dielec:torch.Tensor,
+                                eps0:torch.Tensor, eps_ext:torch.Tensor, E_ext:torch.Tensor,
+                                Nx:int, Ny:int, Nz:int, P:torch.Tensor,
+                                number_interations = 100, tol = 1e-4):
+
+    """
+    Solves the constitutive and balance equations using FFT.
+    Returns stress, electric displacement, elastic strain and total electric field
+
+    C0, K0, e0 - homogeneous material's stiffness, piezoelectric and dielectric tesnors
+
+    eP - heterogeneuos piezoelectric tensor
+
+    G_elas, G_piezo, G_dielec - Calculateed Green's functions in Fourier space
+
+    eps0 - sponteneous strain
+
+    eps_ext - applied external strain
+
+    E_ext - applied electric field
+
+    Nx, Ny, Nz - number of grid points in each direction
+
+    P - sponteneous polarization
+
+    number_interations - number of interations, default is 100
+
+    tol - given tolerance, default is 1e-4
+    """
+
+    # Initialize and change the dtype in Fourier space
+    C0_complex = C0.to(torch.complex64)
+    e0_complex = e0.to(torch.complex64)
+    G_elas_complex = G_elas.to(torch.complex64)
+    G_piezo_complex = G_piezo.to(torch.complex64)
+    G_dielec_complex = G_dielec.to(torch.complex64)
+
+    # Initialize the norms
+    sig_norm = 1e-8
+    D_norm = 1e-8
+
+    # Initialize the total strain and electric field
+    eps_tot = torch.zeros_like(eps0, dtype=torch.float32)
+    E = torch.zeros_like(E_ext, dtype=torch.float32)
+
+    # Apply FFT for the sponteneous polarization and strain
+    P_fft = fft(P, dim=(1,2,3))
+    eps0_fft = fft(eps0, dim=(2,3,4))
+
+    # start the loop
+    for itr in range(number_interations):
+
+        # elastic strain
+        eps_elas = eps_tot+eps_ext-eps0
+
+        # total electric field: depolarization + applied
+        E_tot = E + E_ext
+
+        # constitutive equations, sigma & D
+        sigma = torch.einsum('ijkl, klxyz -> ijxyz', C0, eps_elas) - torch.einsum('kijxyz, kxyz -> ijxyz', eP, E_tot)
+        D = torch.einsum('ijkxyz, jkxyz -> ixyz', eP, eps_elas) + torch.einsum('ij, jxyz -> ixyz', K0, E_tot) + P
+
+        # calculate the norms
+        sig_norm_new = torch.norm(sigma.ravel(), p=2).item()
+        D_norm_new = torch.norm(D.ravel(), p=2).item()
+
+        # find the error
+        err_s = abs((sig_norm_new - sig_norm) / sig_norm)
+        err_d = abs((D_norm_new - D_norm )/ D_norm)
+
+        # print iteration number and errors
+        print(f"Iteration: {itr} | S. error = {err_s:.2E} | D. error = {err_d:.2E}")
+        # print(f"Iteration: {itr} | S. error = {err_s} | D. error = {err_d}")
+
+        # check for nan and inf errors and break the loop if the error is below 1e-4
+        if math.isnan(err_s) is True or math.isinf(err_s) is True:
+            print(f"Error: Iteration loop terminated due to the presence of NaN or Inf ")
+            sys.exit()
+        elif max(err_s,err_d) < tol:
+            break
+
+        # update the norms
+        D_norm = D_norm_new
+        sig_norm = sig_norm_new
+
+        # determine the heterogeneuos stress tesnsor and elec. displacement vector
+        tau = sigma - torch.einsum('ijkl, klxyz -> ijxyz', C0, eps_elas) + torch.einsum('kij, kxyz -> ijxyz', e0, E_tot)
+        rho = D - torch.einsum('ijk, jkxyz -> ixyz', e0, eps_elas) - torch.einsum('ij, jxyz -> ixyz', K0, E_tot) - P
+
+        # do FFT
+        tau_fft = fft(tau, dim=(2,3,4))
+        rho_fft = fft(rho, dim=(1,2,3))
+
+        # get alpha and beta
+        alpha = tau_fft-torch.einsum('ijkl, klxyz -> ijxyz', C0_complex, eps0_fft)
+        beta = rho_fft + P_fft - torch.einsum('ijk, jkxyz -> ixyz', e0_complex, eps0_fft)
+
+        # Calculate the total strain in Fourier space
+        eps_tot_fft = -torch.einsum('ijklxyz, klxyz -> ijxyz', G_elas_complex, alpha) - torch.einsum('kijxyz, kxyz -> ijxyz', G_piezo_complex, beta)
+        eps_tot_fft[:,:,0,0] = 0
+
+        # Calculate the total electric field in Fourier space
+        E_fft = torch.einsum('ijkxyz, jkxyz -> ixyz', G_piezo_complex, alpha) + torch.einsum('ijxyz, jxyz -> ixyz', G_dielec_complex, beta)
+        E_fft[:,0,0] = 0
+
+        # In real space
+        eps_tot = ifft(eps_tot_fft, dim=(2,3,4)).real
+        E = ifft(E_fft, dim=(1,2,3)).real
+
+    # delete unused tensors to save more memory
+    del eps_tot, E, P_fft, eps0_fft, tau, rho
+    del tau_fft, rho_fft, alpha, beta, E_fft, eps_tot_fft
+
+    # return stress, electric displacement, elastic strain and total electric field
+    return sigma, D, eps_elas, E_tot
+</code></pre>
+
+    
+</section>
+
+<section id="calculate_derivatives">
+    <h2>Calculating Derivatives</h2>
+    
+</section>
+
+        <section id="piezo_algorithm">
+            <h3>FFT-based Algorithm</h3>
+            
+        </section>
+
+        <section id="solving_phase_field_equation">
+            <h2>2.2 Solving Phase-Field Equation</h2>
+            
+        </section>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Select all TOC links
+      const tocLinks = document.querySelectorAll(".toc a");
+  
+      tocLinks.forEach(link => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault(); // Prevent default anchor behavior
+          const targetId = link.getAttribute("href").substring(1); // Get the target ID
+          const targetElement = document.getElementById(targetId);
+  
+          if (targetElement) {
+            const offset = 130; // Adjust this to match your header's height
+            const topPosition = targetElement.getBoundingClientRect().top + window.scrollY - offset;
+  
+            // Scroll to the adjusted position
+            window.scrollTo({
+              top: topPosition,
+              behavior: "smooth"
+            });
+          }
+        });
+      });
+    });
+  </script>
+
+  <!-- <footer>
+    <p>&copy; 2025 Dilshod Durdiev</p>
+  </footer> -->
+</body>
+</html>
