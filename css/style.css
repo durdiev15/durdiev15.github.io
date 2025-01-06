@@ -1,5 +1,7 @@
 body {
     font-family: Arial, sans-serif;
+    /* line-height: 1.6; */
+    color: #333;
     margin: 0;
     padding: 0;
   }
@@ -9,6 +11,7 @@ body {
     color: white;
     padding: 10px 20px;
     text-align: center;
+    z-index: 1000;
   }
   
   nav a {
@@ -33,7 +36,14 @@ body {
   }
 
   li {
-    margin-bottom: 10px; /* Add spacing between items */
+    margin-bottom: 0px; /* Add spacing between items */
+  }
+
+  code {
+    background-color: #f5f5f5; /* Light gray background */
+    padding: 2px 4px;         /* Padding inside the code block */
+    border-radius: 4px;       /* Rounded corners */
+    font-family: monospace;   /* Monospace font */
   }
 
   .project-list {
@@ -66,6 +76,85 @@ body {
   
   .project-list li:hover {
     background-color: #e9ecef; /* Lightly highlight item on hover */
+  }
+    /* Table of Contents fixed position */
+    .toc {
+      position: fixed; /* Keep the TOC fixed on the left */
+      top: 118px; /* Push it below the header */
+      left: 0;
+      width: 270px; /* Adjust the width of the TOC */
+      height: calc(100% - 70px); /* Adjust height to fit below the header */
+      overflow-y: auto; /* Add scroll if the TOC content exceeds its height */
+      background-color: #fff;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    }
+    .toc a {
+      text-decoration: none; /* Remove underline from links */
+      color: #01579b; /* Use a blue color for links */
+      font-weight: 500; /* Medium weight for better readability */
+    }
+    .toc li {
+      margin-bottom: 8px; /* Adds vertical spacing between items */
+      font-size: 15px;
+      font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .toc a:hover {
+      text-decoration: underline; /* Show underline on hover */
+      color: #0056b3; /* Optional: Change color on hover */
+    }
+
+  .container {
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding-top: 200px !important; /* Pushes the container down */
+    max-width: 800px !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
+    margin-left: 280px !important; /* TOC width + padding */
+    bottom: 50px !important;
+    line-height: 1.5 !important; /* Adds space between text lines */  
+  }
+  /* Heading styles specific to the container */
+  .container h1 {
+    font-size: 34px;
+    color: #0056b3;
+  }
+  .container h2 {
+    font-size: 28px;
+    color: #0056b3;
+  }
+  .container h3 {
+    font-size: 22px;
+    color: #0056b3;
+  }
+  .container h4 {
+    font-size: 20px;
+    color: #0056b3;
+  }
+
+  .algorithm {
+    border: 2px solid #4CAF50;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    background-color: #f9f9f9;
+  }
+  .algorithm h2 {
+    color: #333;
+    border-bottom: 2px solid #4CAF50;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+  }
+  .algorithm p,
+  .algorithm ol {
+    margin: 10px 0;
+  }
+  .algorithm ol {
+    padding-left: 20px;
+  }
+  .algorithm li {
+    margin: 10px 0;
   }
   
   
