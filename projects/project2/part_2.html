@@ -45,14 +45,7 @@
                     <li><a href="#green_function">Green's Function</a></li>
                     <li><a href="#solver">FFT-based Solver</a></li>
                     <li><a href="#calculate_derivatives">Calculating Derivatives</a></li>
-                </ul>
-                <li><a href="#numerical_implementation">2. Numerical Implementation with FFT</a></li>
-                <ul>
-                    <li><a href="#solving_cont_equations">2.1 Solving Constitutive Equations</a></li>
-                    <ul>
-                        <li><a href="#piezo_algorithm">2.1.1 FFT-based Algorithm</a></li>
-                    </ul>
-                    <li><a href="#solving_phase_field_equation">2.2 Solving Phase-Field Equation</a></li>
+                    <li><a href="#energies_and_their_derivatives">Energy Calculations and Their Derivatives</a></li>
                 </ul>
             </ul>
         </div>
@@ -438,13 +431,438 @@ def Solve_Piezoelectricity(C0:torch.Tensor, K0:torch.Tensor , e0:torch.Tensor, e
 
 <section id="calculate_derivatives">
     <h2>Calculating Derivatives</h2>
-    
+    <p>
+      Accurately calculating derivatives is essential in phase-field simulations, as even a minor error, like a sign mistake, can lead to incorrect results and completely ruin the simulation. In these simulations, we often need to compute the derivative of the order parameter with respect to the total energy density.
+    </p>
+    <p>
+      In general, material tensors typically depend on the order parameter, which in our case is the polarization. For simplicity, we assume that only the piezoelectric tensor depends on polarization. This dependency introduces the need to calculate the first-order derivatives of this tensor with respect to polarization.
+    </p>
+    <p>
+      The piezoelectric tensor has 27 components, and due to symmetry, we can reduce this to 18 unique components. However, manually deriving the first-order derivative for each component is extremely tedious and error-prone. Additionally, entering these derivatives into Python manually would be time-consuming and likely introduce mistakes.
+    </p>
+    <p>
+      To address this, we leverage symbolic differentiation using the <b>SymPy</b> library in Python. SymPy allows us to compute these derivatives analytically and accurately without the need to perform the tedious calculations by hand. This approach ensures that the derivatives are correct and saves us significant time and effort during implementation.
+    </p>
+<p>
+  We have the following 3rd-order piezoelectric tensor:
+  \begin{equation}\label{eq5}
+            \begin{split}
+                e_{ijk}(P_i)=&\bigg( \frac{|{P_i}|}{P_0} \bigg)^3 \Big\{e_{33} n_i n_j n_k + e_{31} (\delta_{ij} - n_i n_j) n_k \\ &+ \frac{1}{2} e_{15} \big[ (\delta_{ki}- n_k n_i) n_j + (\delta_{kj}- n_k n_j) n_j \big] \Big\},
+            \end{split}
+            \end{equation}
+  Let's rewrite this in terms of the polarization ($n_i = P_i /|\boldsymbol{P}|$):
+  \begin{equation}
+      e_{kij}(P_i)=P_iP_jP_k (e_{33}-e_{31}-e_{15}) + |P|^2 \left(e_{31} \delta_{ij} P_k + \frac{e_{15}}{2}( I_{ki} P_j + \delta_{kj} P_i ) \right)
+  \end{equation}
+</p>
+<pre><code class="language-python">import sympy as sp
+import itertools
+
+# Define the symbols for P components and other parameters
+P1, P2, P3 = sp.symbols('P1 P2 P3')  # P vector components
+e33, e31, e15, em = sp.symbols('e33 e31 e15 em')  # Other symbols em = e33 - e31 - e15
+I = sp.eye(3)  # Identity matrix (Kronecker delta)
+norm_sq = P1**2 + P2**2 + P3**2
+# Define the tensor eP symbolically
+eP = sp.MutableDenseNDimArray.zeros(3, 3, 3)
+
+# Populate eP based on the provided formula
+for k, i, j in itertools.product(range(3), repeat=3):
+    eP[k, i, j] = (
+        P1 * P2 * P3 * em +
+        norm_sq * (
+            e31 * I[i, j] * [P1, P2, P3][k] +
+            e15 / 2 * (I[k, i] * [P1, P2, P3][j] + I[k, j] * [P1, P2, P3][i])
+        )
+    )
+
+# Compute the derivatives of eP with respect to each component of P
+# Derivative wrt P1, deP_dP1
+for i, j, k in itertools.product(range(3), repeat=3):
+    print(f"deP_dP1[{i}, {j}, {k}] = {eP[i,j,k].diff(P1)}")
+
+# Derivative wrt P2, deP_dP2
+for i, j, k in itertools.product(range(3), repeat=3):
+    print(f"deP_dP2[{i}, {j}, {k}] = {eP[i,j,k].diff(P2)}")
+
+# Derivative wrt P3, deP_dP3
+for i, j, k in itertools.product(range(3), repeat=3):
+    print(f"deP_dP3[{i}, {j}, {k}] = {eP[i,j,k].diff(P3)}")  
+</code></pre>
+<p>
+  Run the code provided above to compute the derivatives of the tensor eP with respect to <code>P1</code>, 
+  <code>P2</code> and <code>P3</code>. The output will display the symbolic derivatives for each component. 
+  Once you have these expressions, copy them into a new Python file, which we can name <code>piezo_strain_tensor.py</code>.
+</p>
+<p>
+  While it is possible to convert the symbolic expressions into Python functions using <code>sympy.lambdify()</code>, 
+  this approach may not be ideal for simulations. Given the large number of components in the tensor, 
+  generating and evaluating these functions dynamically during every simulation run could introduce unnecessary 
+  computational overhead.
+</p>
+<p>
+Instead, saving the precomputed symbolic derivatives as hardcoded functions in a separate script ensures that
+ the derivatives are readily available in a form optimized for numerical computations. This approach reduces 
+ runtime overhead and makes the simulation code more efficient.
+</p>
+<pre><code class="language-python">import torch
+import itertools
+
+def Piezo_Strain_Tensor(P:torch.Tensor, e33:float, e31:float, e15:float, e00:float,
+                        device:torch.device):
+
+    """
+    Calculates the piezoelectric and spontaneous strain tensors
+    Returns the piezoelectric tesnor, homogeneous piezoelectric tensor, sponteneous strain tensor
+
+    P - spontaneous polarization
+
+    e33, e31, e15 - piezoelectric tensor components in ferroelectric phase
+
+    e00 - maximum remanent strain
+
+    device - the device, "cpu" or "cuda"
+    """
+
+    # Get the square root of the polarization norm
+    norm_sq = P[0]**2 + P[1]**2 + P[2]**2     # norm of the polarizatioin vector P
+
+    # Unit tensor
+    I = torch.eye(3).to(device)
+
+    # Initialize the piezoelectric tensor
+    eP = torch.zeros((3, 3, 3, *P[0].shape)).to(device)         # P dependen piez. tensor
+    for k, i, j in itertools.product(range(3), repeat=3):
+        eP[k, i, j] = (P[i] * P[j] * P[k] * (e33 - e31 - e15) + norm_sq * (e31 * I[i, j] * P[k]
+                            + e15/2 * (I[k, i] * P[j] + I[k, j] * P[i])))
+
+    # homogeneous piez. tensor, volume average of e(P)
+    e0 = torch.zeros((3, 3, 3)).to(device)
+    for i, j, k in itertools.product(range(3), repeat=3):
+        e0[i, j, k] = torch.mean(eP[i, j, k])
+
+    # spontaneous strain, depends on P
+    eps0 = torch.zeros((3, 3, *P[0].shape)).to(device)
+    for i, j in itertools.product(range(3), repeat=2):
+        eps0[i, j] = 1.5 * e00 * (P[i] * P[j] - 1/3 * norm_sq * I[i, j])
+
+    # return piezoelectric tesnor, homogeneous piezoelectric tensor, sponteneous strain tensor
+    return eP, e0, eps0
+
+
+def Piezo_Strain_Tensor_Derivative(P, e33, e31, e15, e00, device):
+
+    """
+    Calculates the derivative of the piezoelectric tesnor and sponteneous strain tensor
+    wrt polarization P.
+
+    Returns the derivatives
+
+    P - spontaneous polarization
+
+    e33, e31, e15 - piezoelectric tensor components in ferroelectric phase
+
+    e00 - maximum remanent strain
+
+    device - the device, "cpu" or "cuda"
+    """
+
+    # --------------- Derivaive of the piezoelectric tensor wrt P --------------
+    norm_sq = P[0]**2 + P[1]**2 + P[2]**2     # norm of the polarizatioin vector P
+
+    deP_dPx = torch.zeros((3,3,3,*P[0].shape)).to(device)        # derivative wrt P[0]
+    deP_dPy = torch.zeros((3,3,3,*P[0].shape)).to(device)       # derivative wrt P[1]
+    deP_dPz = torch.zeros((3,3,3,*P[0].shape)).to(device)        # derivative wrt P[2]
+
+    em = -e15 - e31 + e33
+
+    deP_dPx[0,0,0] = 3*P[0]**2*em  + 2*P[0]*(P[0]*e15 + P[0]*e31) + (e15 + e31)*norm_sq
+    deP_dPy[0,0,0] = 2*P[1]*(P[0]*e15 + P[0]*e31)
+    deP_dPz[0,0,0] = 2*P[2]*(P[0]*e15 + P[0]*e31)
+
+    deP_dPx[0,0,1] = P[0]*P[1]*e15 + 2*P[0]*P[1]*em
+    deP_dPy[0,0,1] = P[0]**2*em  + P[1]**2*e15 + e15*norm_sq/2
+    deP_dPz[0,0,1] = P[1]*P[2]*e15
+
+    deP_dPx[0,0,2] = P[0]*P[2]*e15 + 2*P[0]*P[2]*em
+    deP_dPy[0,0,2] = P[1]*P[2]*e15
+    deP_dPz[0,0,2] = P[0]**2*em  + P[2]**2*e15 + e15*norm_sq/2
+
+    deP_dPx[0,1,0] = deP_dPx[0,0,1]#P[0]*P[1]*e15 + 2*P[0]*P[1]*em
+    deP_dPy[0,1,0] = deP_dPy[0,0,1]#P[0]**2*em  + P[1]**2*e15 + e15*norm_sq/2
+    deP_dPz[0,1,0] = deP_dPz[0,0,1]#P[1]*P[2]*e15
+
+    deP_dPx[0,1,1] = 2*P[0]**2*e31 + P[1]**2*em  + e31*norm_sq
+    deP_dPy[0,1,1] = 2*P[0]*P[1]*e31 + 2*P[0]*P[1]*em
+    deP_dPz[0,1,1] = 2*P[0]*P[2]*e31
+
+    deP_dPx[0,1,2] = P[1]*P[2]*em
+    deP_dPy[0,1,2] = P[0]*P[2]*em
+    deP_dPz[0,1,2] = P[0]*P[1]*em
+
+    deP_dPx[0,2,0] = deP_dPx[0,0,2]#P[0]*P[2]*e15 + 2*P[0]*P[2]*em
+    deP_dPy[0,2,0] = deP_dPy[0,0,2]#P[1]*P[2]*e15
+    deP_dPz[0,2,0] = deP_dPz[0,0,2]#P[0]**2*em  + P[2]**2*e15 + e15*norm_sq/2
+
+    deP_dPx[0,2,1] = deP_dPx[0,1,2]#P[1]*P[2]*em
+    deP_dPy[0,2,1] = deP_dPy[0,1,2]#P[0]*P[2]*em
+    deP_dPz[0,2,1] = deP_dPz[0,1,2]#P[0]*P[1]*em
+
+    deP_dPx[0,2,2] = 2*P[0]**2*e31 + P[2]**2*em  + e31*norm_sq
+    deP_dPy[0,2,2] = 2*P[0]*P[1]*e31
+    deP_dPz[0,2,2] = 2*P[0]*P[2]*e31 + 2*P[0]*P[2]*em
+
+    deP_dPx[1,0,0] = 2*P[0]*P[1]*e31 + 2*P[0]*P[1]*em
+    deP_dPy[1,0,0] = P[0]**2*em  + 2*P[1]**2*e31 + e31*norm_sq
+    deP_dPz[1,0,0] = 2*P[1]*P[2]*e31
+
+    deP_dPx[1,0,1] = P[0]**2*e15 + P[1]**2*em  + e15*norm_sq/2
+    deP_dPy[1,0,1] = P[0]*P[1]*e15 + 2*P[0]*P[1]*em
+    deP_dPz[1,0,1] = P[0]*P[2]*e15
+
+    deP_dPx[1,0,2] = P[1]*P[2]*em
+    deP_dPy[1,0,2] = P[0]*P[2]*em
+    deP_dPz[1,0,2] = P[0]*P[1]*em
+
+    deP_dPx[1,1,0] = deP_dPx[1,0,1]#P[0]**2*e15 + P[1]**2*em  + e15*norm_sq/2
+    deP_dPy[1,1,0] = deP_dPy[1,0,1]#P[0]*P[1]*e15 + 2*P[0]*P[1]*em
+    deP_dPz[1,1,0] = deP_dPz[1,0,1]#P[0]*P[2]*e15
+
+    deP_dPx[1,1,1] = 2*P[0]*(P[1]*e15 + P[1]*e31)
+    deP_dPy[1,1,1] = 3*P[1]**2*em  + 2*P[1]*(P[1]*e15 + P[1]*e31) + (e15 + e31)*norm_sq
+    deP_dPz[1,1,1] = 2*P[2]*(P[1]*e15 + P[1]*e31)
+
+    deP_dPx[1,1,2] = P[0]*P[2]*e15
+    deP_dPy[1,1,2] = P[1]*P[2]*e15 + 2*P[1]*P[2]*em
+    deP_dPz[1,1,2] = P[1]**2*em  + P[2]**2*e15 + e15*norm_sq/2
+
+    deP_dPx[1,2,0] = deP_dPx[1,0,2]#P[1]*P[2]*em
+    deP_dPy[1,2,0] = deP_dPy[1,0,2]#P[0]*P[2]*em
+    deP_dPz[1,2,0] = deP_dPz[1,0,2]#P[0]*P[1]*em
+
+    deP_dPx[1,2,1] = deP_dPx[1,1,2]#P[0]*P[2]*e15
+    deP_dPy[1,2,1] = deP_dPy[1,1,2]#P[1]*P[2]*e15 + 2*P[1]*P[2]*em
+    deP_dPz[1,2,1] = deP_dPz[1,1,2]#P[1]**2*em  + P[2]**2*e15 + e15*norm_sq/2
+
+    deP_dPx[1,2,2] = 2*P[0]*P[1]*e31
+    deP_dPy[1,2,2] = 2*P[1]**2*e31 + P[2]**2*em  + e31*norm_sq
+    deP_dPz[1,2,2] = 2*P[1]*P[2]*e31 + 2*P[1]*P[2]*em
+
+    deP_dPx[2,0,0] = 2*P[0]*P[2]*e31 + 2*P[0]*P[2]*em
+    deP_dPy[2,0,0] = 2*P[1]*P[2]*e31
+    deP_dPz[2,0,0] = P[0]**2*em  + 2*P[2]**2*e31 + e31*norm_sq
+
+    deP_dPx[2,0,1] = P[1]*P[2]*em
+    deP_dPy[2,0,1] = P[0]*P[2]*em
+    deP_dPz[2,0,1] = P[0]*P[1]*em
+
+    deP_dPx[2,0,2] = P[0]**2*e15 + P[2]**2*em  + e15*norm_sq/2
+    deP_dPy[2,0,2] = P[0]*P[1]*e15
+    deP_dPz[2,0,2] = P[0]*P[2]*e15 + 2*P[0]*P[2]*em
+
+    deP_dPx[2,1,0] = deP_dPx[2,0,1]#P[1]*P[2]*em
+    deP_dPy[2,1,0] = deP_dPy[2,0,1]#P[0]*P[2]*em
+    deP_dPz[2,1,0] = deP_dPz[2,0,1]#P[0]*P[1]*em
+
+    deP_dPx[2,1,1] = 2*P[0]*P[2]*e31
+    deP_dPy[2,1,1] = 2*P[1]*P[2]*e31 + 2*P[1]*P[2]*em
+    deP_dPz[2,1,1] = P[1]**2*em  + 2*P[2]**2*e31 + e31*norm_sq
+
+    deP_dPx[2,1,2] = P[0]*P[1]*e15
+    deP_dPy[2,1,2] = P[1]**2*e15 + P[2]**2*em  + e15*norm_sq/2
+    deP_dPz[2,1,2] = P[1]*P[2]*e15 + 2*P[1]*P[2]*em
+
+    deP_dPx[2,2,0] = deP_dPx[2,0,2]#P[0]**2*e15 + P[2]**2*em  + e15*norm_sq/2
+    deP_dPy[2,2,0] = deP_dPy[2,0,2]#P[0]*P[1]*e15
+    deP_dPz[2,2,0] = deP_dPz[2,0,2]#P[0]*P[2]*e15 + 2*P[0]*P[2]*em
+
+    deP_dPx[2,2,1] = deP_dPx[2,1,2]#P[0]*P[1]*e15
+    deP_dPy[2,2,1] = deP_dPy[2,1,2]#P[1]**2*e15 + P[2]**2*em  + e15*norm_sq/2
+    deP_dPz[2,2,1] = deP_dPz[2,1,2]#P[1]*P[2]*e15 + 2*P[1]*P[2]*em
+
+    deP_dPx[2,2,2] = 2*P[0]*(P[2]*e15 + P[2]*e31)
+    deP_dPy[2,2,2] = 2*P[1]*(P[2]*e15 + P[2]*e31)
+    deP_dPz[2,2,2] = 3*P[2]**2*em  + 2*P[2]*(P[2]*e15 + P[2]*e31) + (e15 + e31)*norm_sq
+
+    # --------------- Derivaive of the spon. strain tensor wrt P ---------------
+    deps0_P_dPx = torch.zeros((3,3,*P[0].shape)).to(device)          # Derivaive of spont. strain wrt P[1]
+    deps0_P_dPy = torch.zeros((3,3,*P[0].shape)).to(device)           # Derivaive of spont. strain wrt P[2]
+    deps0_P_dPz = torch.zeros((3,3,*P[0].shape)).to(device)           # Derivaive of spont. strain wrt P[2]
+
+    deps0_P_dPx[0,0] = 2.0*P[0]*e00
+    deps0_P_dPy[0,0] = -1.0*P[1]*e00
+    deps0_P_dPz[0,0] = -1.0*P[2]*e00
+
+    deps0_P_dPx[0,1] = 1.5*P[1]*e00
+    deps0_P_dPy[0,1] = 1.5*P[0]*e00
+    deps0_P_dPz[0,1] = 0
+
+    deps0_P_dPx[0,2] = 1.5*P[2]*e00
+    deps0_P_dPy[0,2] = 0
+    deps0_P_dPz[0,2] = 1.5*P[0]*e00
+
+    deps0_P_dPx[1,0] = deps0_P_dPx[0,1]
+    deps0_P_dPy[1,0] = deps0_P_dPy[0,1]
+    deps0_P_dPz[1,0] = deps0_P_dPz[0,1]
+
+    deps0_P_dPx[1,1] = -1.0*P[0]*e00
+    deps0_P_dPy[1,1] = 2.0*P[1]*e00
+    deps0_P_dPz[1,1] = -1.0*P[2]*e00
+
+    deps0_P_dPx[1,2] = 0
+    deps0_P_dPy[1,2] = 1.5*P[2]*e00
+    deps0_P_dPz[1,2] = 1.5*P[1]*e00
+
+    deps0_P_dPx[2,0] = deps0_P_dPx[0,2]
+    deps0_P_dPy[2,0] = deps0_P_dPy[0,2]
+    deps0_P_dPz[2,0] = deps0_P_dPz[0,2]
+
+    deps0_P_dPx[2,1] = deps0_P_dPx[1,2]
+    deps0_P_dPy[2,1] = deps0_P_dPy[1,2]
+    deps0_P_dPz[2,1] = deps0_P_dPz[1,2]
+
+    deps0_P_dPx[2,2] = -1.0*P[0]*e00
+    deps0_P_dPy[2,2] = -1.0*P[1]*e00
+    deps0_P_dPz[2,2] = 2.0*P[2]*e00
+
+    # --------------- Derivaive of the elastic strain tensor wrt P -------------
+    deps_elas_dPx = -deps0_P_dPx
+    deps_elas_dPy = -deps0_P_dPy
+    deps_elas_dPz = -deps0_P_dPz
+
+    # delete unused tensors
+    del deps0_P_dPx, deps0_P_dPy, deps0_P_dPz, norm_sq
+
+    # return derivatives
+    return deP_dPx, deP_dPy, deP_dPz, deps_elas_dPx, deps_elas_dPy, deps_elas_dPz
+</code></pre>
+
+
 </section>
 
-        <section id="piezo_algorithm">
-            <h3>FFT-based Algorithm</h3>
-            
-        </section>
+<section id="energies_and_their_derivatives">
+    <h3>Energy Calculations and Their Derivatives</h3>
+    <p>
+      In this section, we provide Python code to compute the bulk energy contributions and their derivatives with respect to polarization, essential components of phase-field simulations.
+    </p>
+    <p>
+      The <b>bulk energy</b> includes elastic, piezoelectric, and electric energy contributions. The code also includes the derivative of the Landau polynomial, which is often used to describe the free energy of ferroelectric materials.
+    </p>
+    <p>
+      Below is the implementation, where we calculate both the energy components and their derivatives with respect to polarization. 
+    </p>
+<pre><code class="language-python">import torch
+
+def Bulk_Energy(C0:torch.Tensor, eps_elas:torch.Tensor,
+                    eP:torch.Tensor, E:torch.Tensor, K:torch.Tensor, P:torch.Tensor):
+
+    """
+    Calculates the bulk energy = elastic + piezoelectric + electric energies.
+    Reeturn elastic, piezoelectric, electric energies
+
+    C0 - homogeneous stiffness tensor
+
+    eps_elas - elastic strain
+
+    eP - piezoelectric tesnor
+
+    E - total electric FIELD
+
+    K - dielectric tesnor
+
+    P - spontaneous polarization
+    """
+
+    # Elastic energy
+    H_elas = 0.5 * np.einsum('ijkl, ijxyz, klxyz -> xyz', C0, eps_elas, eps_elas)
+
+    # Piezoelectric energy
+    H_piezo = -np.einsum('ijkxyz, ijxyz, kxyz -> xyz', eP, eps_elas, E)
+
+    # Electric energy
+    H_elec = -np.einsum('ij,ixyz,jxyz->xyz', K, E, E) - np.einsum('ixyz,ixyz->xyz',P,E)
+
+    # return those energies
+    return H_elas, H_piezo, H_elec
+
+def Bulk_Energy_Derivative(C0:torch.Tensor, eps_elas:torch.Tensor, eP:torch.Tensor,
+                            E:torch.Tensor, deP_dPx:torch.Tensor, deP_dPy:torch.Tensor,
+                            deP_dPz:torch.Tensor, deps_elas_dPx:torch.Tensor,
+                            deps_elas_dPy:torch.Tensor, deps_elas_dPz:torch.Tensor):
+    """
+    Calculates the derivatives of the energies.
+    Returns the derivative of the elastic, piezoelectric and electric energies wrt to polarization.
+
+    C0 - homogeneous stiffness tensor
+
+    eps_elas - elastic strain
+
+    eP - piezoelectric tesnor
+
+    E - total electric FIELD
+
+    deP_dPx, deP_dPy, deP_dPz - derivatives piezoelectric tensor wrt Px, Py, Pz
+
+    deps_elas_dPx, deps_elas_dPy, deps_elas_dPz - derivatives of sponteneous strain tensor wrt Px, Py, Pz
+
+    """
+    # Derivaive of the elastic energy
+    dH_elas_dPx = 0.5*(torch.einsum('ijkl, ijxyz, klxyz -> xyz', C0, deps_elas_dPx, eps_elas) +
+                        torch.einsum('ijkl, ijxyz, klxyz -> xyz', C0, eps_elas, deps_elas_dPx) )
+    dH_elas_dPy = 0.5*(torch.einsum('ijkl, ijxyz, klxyz -> xyz', C0, deps_elas_dPy, eps_elas) +
+                        torch.einsum('ijkl, ijxyz, klxyz -> xyz', C0, eps_elas, deps_elas_dPy) )
+    dH_elas_dPz = 0.5*(torch.einsum('ijkl, ijxyz, klxyz -> xyz', C0, deps_elas_dPz, eps_elas) +
+                        torch.einsum('ijkl, ijxyz, klxyz -> xyz', C0, eps_elas, deps_elas_dPz) )
+
+    dH_elas_dP = torch.stack((dH_elas_dPx, dH_elas_dPy, dH_elas_dPz))
+
+    del dH_elas_dPx, dH_elas_dPy, dH_elas_dPz
+
+    # Derivaive of the piezoelectric energy
+    dH_piezo_dPx = -(torch.einsum('ijkxyz, ijxyz, kxyz -> xyz', deP_dPx, eps_elas, E) +
+                        torch.einsum('ijkxyz, ijxyz, kxyz -> xyz', eP, deps_elas_dPx, E) )
+    dH_piezo_dPy = -(torch.einsum('ijkxyz, ijxyz, kxyz -> xyz', deP_dPy, eps_elas, E) +
+                        torch.einsum('ijkxyz, ijxyz, kxyz  -> xyz', eP, deps_elas_dPy, E) )
+    dH_piezo_dPz = -(torch.einsum('ijkxyz, ijxyz, kxyz -> xyz', deP_dPz, eps_elas, E) +
+                        torch.einsum('ijkxyz, ijxyz, kxyz -> xyz', eP, deps_elas_dPz, E) )
+
+    dH_piezo_dP = torch.stack((dH_piezo_dPx, dH_piezo_dPy, dH_piezo_dPz))
+
+    del dH_piezo_dPx, dH_piezo_dPy, dH_piezo_dPz
+
+    # derivative of the electric energy
+    dH_elec_dP = -E
+
+    # Derivative of the bulk energy
+    dH_bulk_dP = dH_elas_dP + dH_piezo_dP + dH_elec_dP
+
+    del dH_elas_dP, dH_piezo_dP, dH_elec_dP
+
+    return dH_bulk_dP
+
+def Landau_Polynomial_Derivative(P, a1, a2, a3, a4):
+    
+    """
+    Calculates the derivative of the Landau polynomial wrt P
+
+    P - spontaneous polarization
+
+    a1, a2, a3, a4 - polynomial coefficients
+    """
+
+    dPsi_dPx = a1 * 2*P[0] + a2 * 4*P[0]**3 + a3 * 2*P[0] * (P[1]**2 + P[2]**2) + a4 * 6*P[0]**5
+    dPsi_dPy = a1 * 2*P[1] + a2 * 4*P[1]**3 + a3 * 2*P[1] * (P[0]**2 + P[2]**2) + a4 * 6*P[1]**5
+    dPsi_dPz = a1 * 2*P[2] + a2 * 4*P[2]**3 + a3 * 2*P[2] * (P[0]**2 + P[1]**2) + a4 * 6*P[2]**5
+
+    # combine them
+    dPsi_dP = torch.stack((dPsi_dPx, dPsi_dPy, dPsi_dPz))
+
+    del dPsi_dPx, dPsi_dPy, dPsi_dPz
+
+    return dPsi_dP
+    </code></pre>
+    
+</section>
 
         <section id="solving_phase_field_equation">
             <h2>2.2 Solving Phase-Field Equation</h2>
