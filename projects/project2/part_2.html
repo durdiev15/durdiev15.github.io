@@ -46,145 +46,167 @@
                     <li><a href="#solver">FFT-based Solver</a></li>
                     <li><a href="#calculate_derivatives">Calculating Derivatives</a></li>
                     <li><a href="#energies_and_their_derivatives">Energy Calculations and Their Derivatives</a></li>
+                    <li><a href="#data_management">Data Management</a></li>
+                    <ul>
+                      <li><a href="#vtk">Option 1: Writing Polarization Data to VTK Files</a></li>
+                      <li><a href="#h5py">Option 2: Storing Data Using HDF5</a></li>
+                    </ul>
+                    <li><a href="#materials_parameters">Material Parameters</a></li>
+                    <li><a href="#evolve_polarization">Polarization Dynamics</a></li>
+                    <li><a href="#main">Execute Simulation</a></li>
                 </ul>
             </ul>
         </div>
         <!-- </nav> -->
     </section>
 
-    <div class="container">
-        <section id="introduction">
-            <h1>Part 2: Numerical Implementation</h1>
-            <p>
-                In <a href="part_1.html" target="_blank">Part-1</a>, we developed the phase-field model, derived the governing equations, and introduced the Fourier spectral method. We also built algorithms to solve the coupled piezoelectric equations and a semi-implicit algorithm for the time-dependent Ginzburg-Landau equation.
-            </p>
-            <p>
-                Now, in Part-2, we will implement these algorithms in Python using 
-                <b>PyTorch</b>. While PyTorch is widely known as a machine learning library, 
-                it offers powerful tools like Fast Fourier Transform (FFT) and Einstein summation, 
-                which are faster than their counterparts in NumPy or SciPy. Moreover, 
-                PyTorch allows us to run computations on GPUs, enabling significant acceleration 
-                by submitting scripts as jobs on a GPU cluster. This makes PyTorch an excellent choice for our simulations.
-            </p>
-        </section>
+<div class="container">
+<section id="introduction">
+  <h1>Part 2: Numerical Implementation</h1>
+  <p>
+      In <a href="part_1.html" target="_blank">Part-1</a>, we developed the phase-field model, derived the governing equations, and introduced the Fourier spectral method. We also built algorithms to solve the coupled piezoelectric equations and a semi-implicit algorithm for the time-dependent Ginzburg-Landau equation.
+  </p>
+  <p>
+      Now, in Part-2, we will implement these algorithms in Python using 
+      <b>PyTorch</b>. While PyTorch is widely known as a machine learning library, 
+      it offers powerful tools like Fast Fourier Transform (FFT) and Einstein summation, 
+      which are faster than their counterparts in NumPy or SciPy. Moreover, 
+      PyTorch allows us to run computations on GPUs, enabling significant acceleration 
+      by submitting scripts as jobs on a GPU cluster. This makes PyTorch an excellent choice for our simulations.
+  </p>
+  <p>
+    <b>Python Code Structure for Simulations:</b>
+  </p>
+  <ul>
+    <li><code>main.py</code>: The main file executed to run the simulation. It contains simulation parameters and imports the <code>evolve_polarization</code> module.</li>
+    <li><code>evolve_polarization.py</code>: Contains the polarization evolution function. Imports modules for parameters, piezoelectric and strain tensor calculation, energy calculation, Fourier frequency calculation, VTK file writing, Green's function calculation, and the piezoelectricity solver.</li>
+    <li><code>parameters.py</code>: Stores all material parameters used in the simulation.</li>
+    <li><code>piezo_strain_tensor.py</code>: Calculates the piezoelectric and spontaneous strain tensor and its derivative.</li>
+    <li><code>energy.py</code>: Calculates bulk energy and its derivative.</li>
+    <li><code>fourier_frequency.py</code>: Calculates Fourier frequencies.</li>
+    <li><code>write_vtk.py</code>: Provides functionality to write simulation results to VTK files in 3D.</li>
+    <li><code>greens_function.py</code>: Calculates the Green's function in Fourier space.</li>
+    <li><code>solver.py</code>: Solves the piezoelectric constitutive and balance equations.</li>
+  </ul>
+</section>
 
-        <section id="section1">
-            <h1>Non-Dimensionalization</h1>
-            <p>
-              Non-dimensionalization is a crucial step when working with equations in simulations, 
-              especially in phase-field modeling of ferroelectric domains. By removing units from the equations, 
-              we simplify the mathematics and make the simulation more general. This step helps ensure that the results 
-              can be easily scaled to different physical systems and reduces the chance of numerical errors due to the 
-              large or small magnitudes of physical constants.
-            </p>
-            <p>
-              Once we non-dimensionalize the equations, they are ready for numerical implementation. 
-              The dimensionless form ensures that the computations are efficient and robust, regardless of the 
-              specific physical scale of the system being studied. Next, we will show how to apply non-dimensionalization 
-              to the governing equations step by step, preparing them for use in our simulations.
-            </p>
-            <p>
-              So, we have the following phase-field equation:
-              \begin{equation}\label{app:PFeq}
-              \beta\frac{\partial P_i}{\partial t}= \kappa_{\rm grad} \frac{G l}{P_0^2} P_{i,jj} - \kappa_{\rm sep}\frac{G}{l} \frac{\partial\tilde{\psi}}{\partial P_i}-\frac{\partial H^{\rm bulk}}{\partial P_i} .
-              \end{equation}
-              The physical quantities we have are polarization ($P$ and $P_0$), 
-              mobility coefficient ($\beta$), domain wall width ($l$), domain wall energy ($G$), time ($t$) and energy density $H$.
-              Their units are:
-              \begin{equation}\label{app:units}
-                  P, P_0\rightarrow \bigg[\frac{\text{C}}{\text m^2}\bigg], 
-                  \quad \beta^{-1}\rightarrow\bigg[\frac{\text J \text m \text s}{\text C^2}\bigg],  
-                  \quad G \rightarrow \bigg[\frac{\text J}{\text m^2}\bigg], 
-                  \quad H\rightarrow\bigg[\frac{\text J}{\text m^3}\bigg]
-              \end{equation}
-              Dimensionless forms of the quantities follow from division by a relevant scaling parameter (subscript s),
-              \begin{equation*}
-                  \begin{split}
-                    \tilde{P}=\frac{P}{P_s}, 
-                    \quad \tilde{t}=\frac{t}{t_s}, 
-                    \quad \tilde{H}=\frac{H}{H_s} 
-                    \quad \tilde{  r}=\frac{  r}{r_s}, 
-                    \quad \tilde \beta = \frac{\beta}{\beta_s}
-                \end{split}
-              \end{equation*}
-              which we choose here as
-              \begin{equation*}
-                  P_s = P_0, 
-                  \quad t_s=10^{-12} \; [\text{s}], 
-                  \quad H_s = \frac{G}{l}, 
-                  \quad r_s=l, 
-                  \quad \beta_s = \frac{G t_s}{lP_0^2}
-              \end{equation*}
-              then
-              \begin{equation}
-              \tilde{\beta} \frac{G t_s}{lP_0^2} \frac{P_0}{t_s}\frac{\partial \tilde P_i}{\partial \tilde t} = 
-              \kappa_{\rm grad} \frac{G l}{P_0^2} \frac{P_0}{l^2} \tilde P_{i,jj} 
-              - \kappa_{\rm sep}\frac{G}{l} \frac{1}{P_0}\frac{\partial\tilde{\psi}}{\partial \tilde P_i}
-              - \frac{G}{lP_0}\frac{\partial \tilde H^{\rm bulk}}{\partial \tilde P_i}.
-              \end{equation}
-              Finally, our non-dimensionalized phase-field equation is 
-              \begin{equation}
-              \tilde{\beta}\frac{\partial \tilde P_i}{\partial \tilde t} = 
-              \kappa_{\rm grad} \tilde P_{i,jj} 
-              - \kappa_{\rm sep}\frac{\partial\tilde{\psi}}{\partial \tilde P_i}
-              - \frac{\partial \tilde H^{\rm bulk}}{\partial \tilde P_i}.
-              \end{equation}
-            </p>
-            
-        </section>
+<section id="section1">
+  <h1>Non-Dimensionalization</h1>
+  <p>
+    Non-dimensionalization is a crucial step when working with equations in simulations, 
+    especially in phase-field modeling of ferroelectric domains. By removing units from the equations, 
+    we simplify the mathematics and make the simulation more general. This step helps ensure that the results 
+    can be easily scaled to different physical systems and reduces the chance of numerical errors due to the 
+    large or small magnitudes of physical constants.
+  </p>
+  <p>
+    Once we non-dimensionalize the equations, they are ready for numerical implementation. 
+    The dimensionless form ensures that the computations are efficient and robust, regardless of the 
+    specific physical scale of the system being studied. Next, we will show how to apply non-dimensionalization 
+    to the governing equations step by step, preparing them for use in our simulations.
+  </p>
+  <p>
+    So, we have the following phase-field equation:
+    \begin{equation}\label{app:PFeq}
+    \beta\frac{\partial P_i}{\partial t}= \kappa_{\rm grad} \frac{G l}{P_0^2} P_{i,jj} - \kappa_{\rm sep}\frac{G}{l} \frac{\partial\tilde{\psi}}{\partial P_i}-\frac{\partial H^{\rm bulk}}{\partial P_i} .
+    \end{equation}
+    The physical quantities we have are polarization ($P$ and $P_0$), 
+    mobility coefficient ($\beta$), domain wall width ($l$), domain wall energy ($G$), time ($t$) and energy density $H$.
+    Their units are:
+    \begin{equation}\label{app:units}
+        P, P_0\rightarrow \bigg[\frac{\text{C}}{\text m^2}\bigg], 
+        \quad \beta^{-1}\rightarrow\bigg[\frac{\text J \text m \text s}{\text C^2}\bigg],  
+        \quad G \rightarrow \bigg[\frac{\text J}{\text m^2}\bigg], 
+        \quad H\rightarrow\bigg[\frac{\text J}{\text m^3}\bigg]
+    \end{equation}
+    Dimensionless forms of the quantities follow from division by a relevant scaling parameter (subscript s),
+    \begin{equation*}
+        \begin{split}
+          \tilde{P}=\frac{P}{P_s}, 
+          \quad \tilde{t}=\frac{t}{t_s}, 
+          \quad \tilde{H}=\frac{H}{H_s} 
+          \quad \tilde{  r}=\frac{  r}{r_s}, 
+          \quad \tilde \beta = \frac{\beta}{\beta_s}
+      \end{split}
+    \end{equation*}
+    which we choose here as
+    \begin{equation*}
+        P_s = P_0, 
+        \quad t_s=10^{-12} \; [\text{s}], 
+        \quad H_s = \frac{G}{l}, 
+        \quad r_s=l, 
+        \quad \beta_s = \frac{G t_s}{lP_0^2}
+    \end{equation*}
+    then
+    \begin{equation}
+    \tilde{\beta} \frac{G t_s}{lP_0^2} \frac{P_0}{t_s}\frac{\partial \tilde P_i}{\partial \tilde t} = 
+    \kappa_{\rm grad} \frac{G l}{P_0^2} \frac{P_0}{l^2} \tilde P_{i,jj} 
+    - \kappa_{\rm sep}\frac{G}{l} \frac{1}{P_0}\frac{\partial\tilde{\psi}}{\partial \tilde P_i}
+    - \frac{G}{lP_0}\frac{\partial \tilde H^{\rm bulk}}{\partial \tilde P_i}.
+    \end{equation}
+    Finally, our non-dimensionalized phase-field equation is 
+    \begin{equation}
+    \tilde{\beta}\frac{\partial \tilde P_i}{\partial \tilde t} = 
+    \kappa_{\rm grad} \tilde P_{i,jj} 
+    - \kappa_{\rm sep}\frac{\partial\tilde{\psi}}{\partial \tilde P_i}
+    - \frac{\partial \tilde H^{\rm bulk}}{\partial \tilde P_i}.
+    \end{equation}
+  </p>
+  
+</section>
 
-        <section id="fourier_frequency">
-            <h2>
-                Fourier Frequency
-            </h2>
-            <p> Fourier frequencies represent the wavevector components corresponding to the discretized grid. 
-              In our simulations, we compute these frequencies using the FFT in 3D space.
-            </p>
-            <p>
-              The Python function <code>fourier_frequency.py</code> provided calculates the Fourier frequencies for a 3D grid using PyTorch. 
-              It takes the number of grid points and grid spacing in each spatial direction as inputs, along 
-              with the computation device (CPU or GPU). The function then uses the <code>torch.fft.fftfreq</code> method 
-              to compute the sample frequencies for each direction (x, y, z) and combines them into a 3D tensor grid.
-            </p>
+<section id="fourier_frequency">
+  <h2>
+      Fourier Frequency
+  </h2>
+  <p> Fourier frequencies represent the wavevector components corresponding to the discretized grid. 
+    In our simulations, we compute these frequencies using the FFT in 3D space.
+  </p>
+  <p>
+    The Python function <code>fourier_frequency.py</code> provided calculates the Fourier frequencies for a 3D grid using PyTorch. 
+    It takes the number of grid points and grid spacing in each spatial direction as inputs, along 
+    with the computation device (CPU or GPU). The function then uses the <code>torch.fft.fftfreq</code> method 
+    to compute the sample frequencies for each direction (x, y, z) and combines them into a 3D tensor grid.
+  </p>
 <pre><code class="language-python">import torch
 
 def fourier_frequencies(Nx:int, dx:float, Ny:int, dy:float, Nz:int, dz:float, device:torch.device):
-    """
-    Computes the FFT sample frequencies for a 3D
+"""
+Computes the FFT sample frequencies for a 3D
 
-    Nx, Ny, Nz - number of grid points in each direction
+Nx, Ny, Nz - number of grid points in each direction
 
-    dx, dy, dz - grid spacing in each direction
+dx, dy, dz - grid spacing in each direction
 
-    device - torch device; "cpu" or "cuda"
-    """
-    # in x-direction
-    kx = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Nx, dx)).to(device)
+device - torch device; "cpu" or "cuda"
+"""
+# in x-direction
+kx = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Nx, dx)).to(device)
 
-    # in y-direction
-    ky = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Ny, dy)).to(device)
+# in y-direction
+ky = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Ny, dy)).to(device)
 
-    # in z-direction
-    kz = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Nz, dz)).to(device)
+# in z-direction
+kz = (2.0 * torch.tensor([torch.pi]) * torch.fft.fftfreq(Nz, dz)).to(device)
 
-    # Create grids of coordinates
-    kx_grid, ky_grid, kz_grid = torch.meshgrid(kx, ky, kz, indexing = 'ij')
+# Create grids of coordinates
+kx_grid, ky_grid, kz_grid = torch.meshgrid(kx, ky, kz, indexing = 'ij')
 
-    # Concatenates a sequence of tensors
-    freq = torch.stack((kx_grid, ky_grid, kz_grid))
+# Concatenates a sequence of tensors
+freq = torch.stack((kx_grid, ky_grid, kz_grid))
 
-    # Clean up
-    del kx, ky, kz, kx_grid, ky_grid, kz_grid
+# Clean up
+del kx, ky, kz, kx_grid, ky_grid, kz_grid
 
-    return freq
+return freq
 </code></pre>     
 <p>
-  In Python, memory management is crucial, especially when working with large datasets or simulations. 
-  Using <code>del</code> to delete variables that are no longer needed helps free up memory. 
-  This is particularly important when dealing with large arrays or tensors, as these can consume 
-  significant amounts of memory.
+In Python, memory management is crucial, especially when working with large datasets or simulations. 
+Using <code>del</code> to delete variables that are no longer needed helps free up memory. 
+This is particularly important when dealing with large arrays or tensors, as these can consume 
+significant amounts of memory.
 </p>
-        </section>
+</section>
 
 <section id="green_function">
 <h2>
@@ -864,11 +886,556 @@ def Landau_Polynomial_Derivative(P, a1, a2, a3, a4):
     
 </section>
 
-        <section id="solving_phase_field_equation">
-            <h2>2.2 Solving Phase-Field Equation</h2>
-            
-        </section>
-    </div>
+<section id="data_management">
+<h2>Data Management</h2>
+<p>
+  Efficient data management is crucial for phase-field simulations, as these models often produce large volumes of data. 
+  Proper storage and organization of this data enable post-processing, visualization, and reproducibility of results. 
+  In this section, we explore two common methods for saving polarization data: <b>VTK files</b> and <b>HDF5 files using the h5py library</b>. 
+  Each has distinct advantages, depending on your needs.
+</p>
+</section>
+
+<section id="vtk">
+  <h3>Option 1: Writing Polarization Data to VTK Files</h3>
+  <p>
+    VTK (Visualization Toolkit) files are widely used for scientific visualization, particularly in tools like ParaView. 
+    Writing polarization data to VTK files allows for immediate and intuitive visualization of simulation results in 2D or 3D.
+  </p>
+  <p><b>Advantages of Using VTK Files:</b></p>
+  <p>
+    VTK files integrate seamlessly with ParaView and other visualization software, allowing you to visualize scalar or 
+    vector fields without additional conversion steps.
+  </p>
+  <p>
+    ASCII VTK files are text-based and can be opened and inspected for debugging or verification purposes.
+  </p>
+  <p>
+    The VTK format natively supports structured grids, making it ideal for phase-field data on regular grids.
+  </p>
+  <p><b>Limitations:</b></p>
+  <p>
+    ASCII VTK files can become large, especially for 3D simulations with fine resolutions.
+  </p>
+  <p>
+    VTK files are not ideal for storing additional metadata (e.g., simulation parameters).
+  </p>
+  <p>We can create now another file for this <code>write_vtk.py</code></p>
+<pre><code class="language-python">def write_vtk(step, polarization, dx, dy, dz):
+
+  """
+  Write a VTK file with polarization vector data.
+
+  Parameters:
+      - filename (str): The name of the VTK file to be created.
+      - polarization (numpy.ndarray): The polarization vector with shape (3, Nx, Ny, Nz).
+      - dx (float): Grid spacing along the x-axis.
+      - dy (float): Grid spacing along the y-axis.
+      - dz (float): Grid spacing along the z-axis.
+  """
+
+   # Ensure the polarization vector has the correct shape
+  assert polarization.shape[0] == 3, "Polarization vector should have shape (3, Nx, Ny, Nz)"
+
+  Nx, Ny, Nz = polarization.shape[1], polarization.shape[2], polarization.shape[3]
+
+  with open("time_" + str(step) + ".vtk", 'w') as vtk_file:
+
+      # Write VTK header
+      vtk_file.write("# vtk DataFile Version 2.0\n")
+      vtk_file.write("Polarization Data\n")
+      vtk_file.write("ASCII\n")
+      vtk_file.write("DATASET STRUCTURED_GRID\n")
+      vtk_file.write(f"DIMENSIONS {Nx} {Ny} {Nz}\n")
+      vtk_file.write(f"POINTS {Nx*Ny*Nz} float\n")
+
+      # Write grid point coordinates
+      for k in range(Nz):
+          for j in range(Ny):
+              for i in range(Nx):
+                  vtk_file.write(f"{i*dx} {j*dy} {k*dz}\n")
+
+      # Write point data header
+      vtk_file.write(f"POINT_DATA {Nx*Ny*Nz}\n")
+      vtk_file.write("VECTORS polarization float\n")
+
+      # Write polarization vector data
+      for k in range(Nz):
+          for j in range(Ny):
+              for i in range(Nx):
+                  vtk_file.write(f"{polarization[0, i, j, k]} {polarization[1, i, j, k]} {polarization[2, i, j, k]}\n")
+
+
+</code></pre>
+  
+</section>
+
+<section id="h5py">
+  <h3>Option 2: Storing Data Using HDF5</h3>
+  <p>
+    HDF5 is a high-performance, hierarchical data format designed for storing large numerical datasets. 
+    The <code>h5py</code> library provides a Python interface to efficiently write and read HDF5 files.
+  </p>
+  <p><b>Advantages of Using HDF5 Files:</b></p>
+  <p>
+    HDF5 files are binary, resulting in smaller file sizes compared to ASCII formats like VTK.
+  </p>
+  <p>
+    Data can be organized into groups and datasets, enabling you to store polarization fields alongside simulation metadata 
+    (e.g., time steps, parameters).
+  </p>
+  <p>
+    HDF5 handles very large datasets efficiently, making it suitable for simulations with high spatial and temporal resolution.
+  </p>
+  <p>
+    The format can store various types of data (e.g., scalars, vectors, and multidimensional arrays) in a single file.
+  </p>
+  <p>Here is the code for <code>store_hdf5.py</code></p>
+<pre><code class="language-python">import h5py
+
+def Write_to_HDF5(step, P, **kwargs):
+    """
+    Saves simulation results, including polarization and optional parameters, to an HDF5 file.
+
+    Parameters:
+        step (int): Current simulation time step or identifier.
+        P (list): Polarization tensor components as a list of numpy arrays [Px, Py, Pz].
+        **kwargs: Optional keyword arguments to save additional data, such as:
+            - 'ElasticStrain': Elastic strain tensor components (3x3 numpy array).
+            - 'ElectricField': Electric field tensor components as a list [Ex, Ey, Ez].
+            - 'SimulationParams': Dictionary of simulation parameters.
+
+    The data is stored hierarchically in the HDF5 file for efficient access and organization.
+    """
+    # Open or create the HDF5 file in append mode
+    with h5py.File('results.h5', 'a') as hdf:
+        # Define the time step group for this set of results
+        time = f'/time_{int(step)}'
+
+        # Save the polarization tensor components
+        hdf.create_dataset(f'Polarization/Px{time}', data=P[0])
+        hdf.create_dataset(f'Polarization/Py{time}', data=P[1])
+        hdf.create_dataset(f'Polarization/Pz{time}', data=P[2])
+
+        # Save additional data based on the provided keyword arguments
+        for key, value in kwargs.items():
+            if key == 'ElasticStrain':
+                # Save components of the elastic strain tensor
+                hdf.create_dataset(f'Elastic strain/strain_XX{time}', data=value[0, 0])
+                hdf.create_dataset(f'Elastic strain/strain_XY{time}', data=value[0, 1])
+                hdf.create_dataset(f'Elastic strain/strain_XZ{time}', data=value[0, 2])
+                hdf.create_dataset(f'Elastic strain/strain_YY{time}', data=value[1, 1])
+                hdf.create_dataset(f'Elastic strain/strain_YZ{time}', data=value[1, 2])
+                hdf.create_dataset(f'Elastic strain/strain_ZZ{time}', data=value[2, 2])
+
+            elif key == 'ElectricField':
+                # Save components of the electric field tensor
+                hdf.create_dataset(f'Electric field/Ex{time}', data=value[0])
+                hdf.create_dataset(f'Electric field/Ey{time}', data=value[1])
+                hdf.create_dataset(f'Electric field/Ez{time}', data=value[2])
+
+            elif key == 'SimulationParams':
+                # Save simulation parameters
+                sim_params = value
+                sim_params_group = hdf.create_group('Simulation_Parameters')
+                
+                # Iterate through the simulation parameters dictionary and save each parameter
+                for param_name, param_value in sim_params.items():
+                    sim_params_group.create_dataset(param_name, data=param_value)
+</code></pre>
+</section>
+
+<section id="materials_parameters">
+<h2>Material Parameters</h2>
+<p>
+  Now, let's create another file called <code>parameters.py</code>. In this file, you will store material properties and coefficients 
+  for the Landau polynomial, which are key components of the simulation. Additionally, you will define a function named 
+  <code>initial_polarization</code>. This function will generate initial polarization configurations with various domain types, 
+  such as random distributions, 180° or 90° domain walls, or sharp interfaces. Here is the code:
+</p>
+<pre><code class="language-python">"""
+This file contains all the data necessary for the phase-field simulations
+
+Material data:
+    - store all material parameters here
+    - function BTO_3D() contains material parameters for BTO
+
+Initial polarization can also be imported from here for different domain types:
+    - random -> polarization vector field starts with an initial
+                uniform distribution over [-0.1, +0.1]
+    - 90 -> polarization vector field starts with three 90° sharp interfaces
+            Note, here must be Nx=Ny
+    - 180 -> polarization vector field starts with a single 180° sharp interface
+"""
+
+import numpy as np
+import itertools
+import torch
+
+# Functions to convert Voigt to full tensors
+def full_3x3_to_Voigt_6_index_3D(i, j):
+    if i == j:
+        return i
+    return 6-i-j
+
+def Voigt_to_full_Tensor_3D(C):
+    C = np.asarray(C)
+    C_out = np.zeros((3,3,3,3), dtype=np.float32)
+    for i, j, k, l in itertools.product(range(3), range(3), range(3), range(3)):
+        Voigt_i = full_3x3_to_Voigt_6_index_3D(i, j)
+        Voigt_j = full_3x3_to_Voigt_6_index_3D(k, l)
+        C_out[i, j, k, l] = C[Voigt_i, Voigt_j]
+    return C_out
+
+def Landau_Polynomial_Coeffs():
+    """
+    Returns the Landau polynomial coefficients.
+    """
+    a1, a2, a3, a4 = -0.1, -2.8, -3.8, 1.9
+
+    return a1, a2, a3, a4
+
+def BTO_3D():
+
+    G       = 12e-3                       # J/m²=N/m Interfacial Energy
+    l_wall  = 1.5E-9                      # m: Thickness of interface: Length Scale
+    P0      = 0.26                        # C/m²: Maximum polarization
+    mob     = 26/75*1e3                   # A/Vm: mobility beta^-1
+    c_tet   = 4.032                         # angstrom
+    a_tet   = 3.992                         # angstrom
+    e00     = 2*(c_tet-a_tet)/(c_tet+2*a_tet)
+
+      # ----------------------- MATERIAL PARAMETERS ----------------------------
+    k_sep   = 0.70    # Separation coefficient
+    k_grad  = 0.35   # Gradient Energy coefficient
+
+    # piezoelectric tensor components
+    e31, e33, e15 = (-0.7, 6.7, 34.2)  # e33 = 6.7
+    # e_ver = e33; e_per = e31; e_hor = e15
+
+    # Elastic tensor comps
+    C11 = 22.2e10
+    C12 = 11.1e10
+    C44 = 6.1e10
+
+    C_cub = np.array([[C11, C12, C12, 0, 0, 0],
+                      [C12, C11, C12, 0, 0, 0],
+                      [C12, C12, C11, 0, 0, 0],
+                      [0,   0,   0, C44, 0, 0],
+                      [0,   0,   0, 0, C44, 0],
+                      [0,   0,   0, 0, 0, C44]])
+
+    C0 = torch.tensor(Voigt_to_full_Tensor_3D(C_cub))
+
+    k = 19.5e-9
+
+    K0 = torch.eye(3)*k
+    return G, l_wall, P0, mob, e00, k_sep, k_grad, e31, e33, e15, C0, K0
+
+# Inital polarization
+def initial_polarization(Nx, Ny, domain_type, Nz):
+
+    torch.manual_seed(51254)
+    print("Initial polarization for 3D simulations")
+
+    if domain_type == 'random':
+
+        # generates random initial polarization
+        Px = (0.1 * (2.0 * torch.rand(Nx, Ny, Nz) - 1.0))#.requires_grad_()
+        Py = (0.1 * (2.0 * torch.rand(Nx, Ny, Nz) - 1.0))#.requires_grad_()
+        Pz = (0.1 * (2.0 * torch.rand(Nx, Ny, Nz) - 1.0))#.requires_grad_()
+
+    elif domain_type == '180':
+
+        # generates a single 180° DW
+        print("180° domain type")
+        Px = torch.zeros((Nx,Ny,Nz))
+        Py = torch.zeros((Nx,Ny,Nz))
+        Pz = torch.ones((Nx,Ny,Nz))
+        Pz[:,int(Ny/2):,:]=-1
+
+    elif domain_type == '90':
+
+        # generates 90° DW structure
+        from scipy import linalg
+        first_row = torch.zeros(Nz)
+        nn=Nz/2
+        first_row[:int(nn)]=1
+        first_row[2*int(nn)-1:3*int(nn)]=1
+
+        first_col = torch.ones(Ny)
+        first_col[:int(nn)]=0
+        first_col[2*int(nn)-1:3*int(nn)]=0
+
+        Pyy = torch.from_numpy(linalg.toeplitz(first_col, first_row))
+        Pxx = (1-Pyy)*-1
+        # create 90° DW in yz plane
+        Px = torch.zeros((Nx,Ny,Nz))
+        Py = torch.zeros((Nx,Ny,Nz))
+        Py[:] = Pxx
+        Pz = torch.zeros((Nx,Ny,Nz))
+        Pz[:] = Pyy
+
+        print(Px.shape, Py.shape, Pz.shape)
+
+    elif domain_type == 'minus_z':
+        Px = torch.zeros((Nx,Ny,Nz))
+        Py = torch.zeros((Nx,Ny,Nz))
+        Pz = -torch.ones((Nx,Ny,Nz))
+
+    elif domain_type == 'plus_z':
+        Px = torchp.zeros((Nx,Ny,Nz))
+        Py = torch.zeros((Nx,Ny,Nz))
+        Pz = torch.ones((Nx,Ny,Nz))
+
+    return torch.stack((Px, Py, Pz))
+</code></pre>
+</section>
+
+<section id="evolve_polarization">
+  <h2>
+    Polarization Dynamics
+  </h2>
+  <p>
+    Now, let’s implement the polarization equation by writing the EvolvePolarization function in the <code>evolve_polarization.py</code> 
+    file. We will use the forward Euler scheme for time evolution, which was introduced earlier in part 1 of this project. 
+    The code includes clear comments to guide you through the implementation.
+  </p>
+  <p>
+    The code can be explained as follows:
+  </p>
+  <p>
+    First, ensure that all Python files are in the same directory so you can import them easily into 
+    <code>evolve_polarization.py</code>. Then, import the material data and set the initial polarization, 
+    whether random, 180°, or 90°. Next, we non-dimensionalize the quantities in the code to avoid numerical 
+    errors during calculations.
+  </p>
+  <p>
+    After that, create additional tensors and assign any external fields, such as electric fields or 
+    mechanical strain. Once this setup is complete, we calculate the Fourier frequencies and begin 
+    the time loop to evolve the simulation.
+  </p>
+<pre><code class="language-python">import torch
+from torch.fft import fftn as fft, ifftn as ifft
+#-------------------------------------------------------------------------------
+import parameters
+import piezo_strain_tensor
+import energy
+from fourier_frequency import fourier_frequencies
+from write_vtk import write_to_vtk3D
+from greens_function import Green_Operator
+from solver import Solve_Piezoelectricity
+
+def EvolvePolarization(device:torch.device, FOLDER:str, grid_points:tuple, grid_space:tuple, time:tuple,
+                                elec_field_ext:tuple, eps_ext_applied:tuple, domain_type:str, save_data:str):
+    # ----------------------------------------------------------------------------
+    """
+    Polarization evolution in 3D with an isotropic gradient energy.
+
+    device - the torch device
+
+    FOLDER - directory where you want to save results
+
+    grid_points - number of grid points in each diection; (Nx, Ny, Nz)
+
+    grid_space - grid spacing in each direction; (dx, dy, dz)
+
+    time - simulation time setup
+
+    elec_field_ext - applied external electric field in each direction; (x, y, z)
+
+    eps_ext_applied - applied external strain in each direction; (x, y, z)
+
+    domain_type - what is you domain type; "180", "90", "random". see parameters.py
+
+    save_data - save the data into VTK file; "YES" or "NO"
+    """
+
+    # import material data
+    G, l_wall, P0, mob, e00, k_sep, k_grad, e31, e33, e15, C0, K0 = parameters.BTO_3D_Schrade()
+    a1, a2, a3, a4 = parameters.Landau_Polynomial_Coeffs_Schrade()
+    # ----------------------------------------------------------------------------
+    Nx, Ny, Nz = grid_points
+    dx, dy, dz = grid_space
+    nsteps, nt, dt = time
+    # ----------------------------------------------------------------------------
+    # Scaling parameters
+    l_scale = l_wall  # length scale   m
+    G_scale = G/l_wall   # energy scale   J/m³
+    P_scale = P0         # polarization scale   C/m²
+    E_scale = G_scale/P_scale   # (N/m²)/(C/m²) = N/C = J/(mC) = V/m: Electric Field scale
+    D_scale = P_scale           # C/m²: Electric Displacement scale
+    K_scale = D_scale/E_scale   # (C/m²)/(V/m) = C/(Vm) Dielectric Permittivity scale
+    e_scale = P_scale           # C/m²: Piezoelectric scale
+    C_scale = G_scale           # N/m²: Elastic Modulus scale
+    t_scale = 1E-12           # s: Time scale
+    v_scale = l_scale/t_scale   # m/s   velocity scale
+    mob_scale = (P_scale/t_scale)/(G_scale/P_scale) # Mobility scale
+    # ----------------------------------------------------------------------------
+    # Non dimensionalize
+    C0 = C0/C_scale
+    e31, e33, e15 = e31/e_scale, e33/e_scale, e15/e_scale
+    K0 = K0/K_scale
+    mob = mob/mob_scale
+    P0 = P0/P_scale
+    dt = dt/t_scale
+    dx = dx/l_scale
+    dy = dy/l_scale
+    dz = dz/l_scale
+    elec_field_ext[0], elec_field_ext[1], elec_field_ext[2] = elec_field_ext[0]/E_scale, elec_field_ext[1]/E_scale, elec_field_ext[2]/E_scale
+    # ----------------------------------------------------------------------------
+    C0 = C0.to(device)
+    K0 = K0.to(device)
+    # ----------------------------------------------------------------------------
+    # initial polarization
+    P = parameters.initial_polarization(Nx, Ny, domain_type, Nz).to(device)
+    # ----------------------------------------------------------------------------
+    # frequencies
+    freq = fourier_frequencies(Nx, dx, Ny, dy, Nz, dz, device)
+    # Save inital polarization -------------------------------------------------
+    if save_data == "YES":
+        # zero step
+        write_to_vtk3D(FOLDER, 0, "Polarization", P.to(torch.device("cpu")),
+                            Nx, Ny, Nz, dx, dy, dz)# ----------------------------------------------------------------------------
+    # Applied external fields --------------------------------------------------
+    eps_ext  = torch.zeros((3,3,Nx,Ny,Nz)).to(device)             # applied elas. field
+    eps_ext[0, 0] = eps_ext_applied[0] # in x
+    eps_ext[1, 1] = eps_ext_applied[1] # in y
+    eps_ext[2, 2] = eps_ext_applied[2] # in z
+
+    E_ext = torch.zeros((3,Nx,Ny,Nz)).to(device)              # applied elec. field
+    E_ext[0] = elec_field_ext[0]   # in x
+    E_ext[1] = elec_field_ext[1]   # in y
+    E_ext[2] = elec_field_ext[2]   # in z
+    # ----------------------------------------------------------------------------
+    denom = 1 + dt * mob * k_grad * (freq[0]**2 + freq[1]**2 + freq[2]**2)
+    # ----------------------------------------------------------------------------
+    for step in range(nsteps):
+        # applied as sine function
+        # ------------------------------------------------------------------------
+        print('\n---------------------- Time step:\t' + str(step)+'\t----------------------')
+        # -------------------------------------------------------------------------
+        eP, e0, eps0 = piezo_strain_tensor.Piezo_Strain_Tensor(P, e33, e31, e15, e00, device)
+        deP_dPx, deP_dPy, deP_dPz, deps_elas_dPx, deps_elas_dPy, deps_elas_dPz = piezo_strain_tensor.Piezo_Strain_Tensor_Derivative(P, e33, e31, e15, e00, device)
+        # -------------------------------------------------------------------------
+        G_elas, G_piezo, G_dielec = Green_Operator(C0, e0, K0, freq, Nx, Ny, Nz, device)
+        # ------------------------------------------------------------------------
+        sigma, D, eps_elas, E = Solve_Piezoelectricity(C0,K0,e0,eP,G_elas,G_piezo,G_dielec,eps0,eps_ext,E_ext,Nx,Ny,Nz,P)
+        # ------------------------------------------------------------------------
+        del G_elas, G_piezo, G_dielec
+        # ------------------------------------------------------------------------
+        dH_bulk_dP = energy.Bulk_Energy_Derivative(C0, eps_elas, eP, E, deP_dPx, deP_dPy, deP_dPz, deps_elas_dPx, deps_elas_dPy, deps_elas_dPz)
+        # ------------------------------------------------------------------------
+        dPsi_dP = energy.Landau_Polynomial_Derivative(P, a1, a2, a3, a4)
+        # ------------------------------------------------------------------------
+        dH_dP =  k_sep * dPsi_dP + dH_bulk_dP
+        # ------------------------------------------------------------------------
+        dH_dP_k = fft(dH_dP, dim=(1,2,3))
+        del dH_dP, dPsi_dP, dH_bulk_dP
+        # ------------------------------------------------------------------------
+        P_k = fft(P, dim=(1,2,3))
+        # ------------------------------------------------------------------------
+        P_k = (P_k - dt * mob * dH_dP_k) / denom
+        # ------------------------------------------------------------------------
+        P = ifft(P_k, dim=(1,2,3)).real
+        # ------------------------------------------------------------------------
+        if ((step + 1) % nt == 0 and save_data == "YES"):
+            # --------------------------------------------------------------------
+            write_to_vtk3D(FOLDER, step + 1, "Polarization", P.to(torch.device("cpu")),
+                                Nx, Ny, Nz, dx, dy, dz)
+            # --------------------------------------------------------------------
+        del sigma, D, eps_elas, E
+</code></pre>
+<div class="important-box">
+  <p>
+    It is important to save polarization data and the simulation parameters because a simulation might stop unexpectedly due to insufficient memory or other issues. To avoid rerunning everything from the beginning, you should save the data at regular intervals defined by a specific time frame, <code>nt</code>.
+  </p>
+</div>
+</section>
+
+<secion id="main">
+<h2>Execute Simulation</h2>
+<p>
+  Now, we create a file <code>main.py</code> to execute the simulation. It just contains the simulation grid and time parameters
+and runs the polarization evolution from <code>evolve_polarization.py</code>
+</p>
+<pre><code class="language-python">import torch
+import timeit
+import os
+import resource
+
+import evolve_polarization
+
+def main():
+
+    print("\n==================== PHASE-FIELD SIMULATIONS =======================\n")
+
+    # Start time
+    start_tm = timeit.default_timer()
+
+    # Device agnostic code
+    if torch.cuda.is_available():
+        device = torch.device("cuda")  # Use CUDA device
+        print("CUDA is available. Using GPU.")
+        print(torch.cuda.get_device_name(0))
+    else:
+        device = torch.device("cpu")  # Use CPU
+        print("CUDA is not available. Using CPU.")
+
+    # ------------------------- SIMULATIONS PARAMETERS -------------------------
+    grid_points = (120, 120, 120) # (Nx, Ny, Nz)
+    grid_space = (5e-10, 5e-10, 5e-10) # (dx, dy, dz) in [m]
+
+    # time parameters: nsteps - number of time steps, nt- time frame to save data
+    time = (30000, 100, 1e-13)   # (nsteps, nt, dt), dt is in [sec]
+
+    # external electric field in each direction
+    elec_field_ext = (0, 0, 0)  # (E_app_x, E_app_y, E_app_z) must be in V/m
+
+    # external applied strain in each direction
+    eps_ext_applied = (0, 0, 0) # (eps_app_x, eps_app_y, eps_app_z)
+
+    # maximum electric field of the hysteresis loop
+    E_max_loop = (0, 2) # (E, direction) E must be in V/m, direction: x=0, y=1, z=2
+
+    # domain_type = "random" OR "90" OR "180" OR "minus_z"
+    domain_type = "random"
+
+    # saves the results, "YES" or "NO"
+    save_data = "YES"
+
+    # directory to save results
+    FOLDER = os.getcwd()
+
+    # Evolve
+    evolve_polarization.EvolvePolarization(device, FOLDER, grid_points, grid_space, time,
+                                    elec_field_ext, eps_ext_applied, domain_type, save_data)
+    # ----------------------------------------------------------------------------
+    stop_tm = timeit.default_timer()
+    print("\n====================== SIMULATIONS  FINISHED =========================\n")
+    print('Execution time: ' + str( format((stop_tm - start_tm)/60,'.3f')) + ' min' )
+    print('\nSimulation parameters:')
+    print('Grid points = ', grid_points)
+    print('Grid space = ', grid_space)
+    print('Time setup = ', time)
+
+    # Get memory usage after execution in kilobytes
+    usage_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+    # Convert to megabytes and gigabytes for printing
+    usage_mb = usage_kb / 1024  # Convert to megabytes
+    usage_gb = usage_mb / 1024   # Convert to gigabytes
+
+    print(f"Memory usage: {usage_gb:.4f} GB")  # Print memory usage in GB with two decimal places
+    print("========================================================================")
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+
+</secion>
+
+</div>
   </main>
 
   <script>

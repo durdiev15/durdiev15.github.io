@@ -83,13 +83,13 @@ body {
       top: 118px; /* Push it below the header */
       left: 0;
       width: 270px; /* Adjust the width of the TOC */
-      height: calc(100% - 70px); /* Adjust height to fit below the header */
+      height: calc(100% - 140px); /* Adjust height to fit below the header */
       overflow-y: auto; /* Add scroll if the TOC content exceeds its height */
       background-color: #fff;
       border-right: 1px solid #ccc;
       padding: 10px;
       box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-    }
+  }
     .toc a {
       text-decoration: none; /* Remove underline from links */
       color: #01579b; /* Use a blue color for links */
@@ -132,6 +132,9 @@ body {
     font-size: 20px;
     color: #01579b;
   }
+  .container li {
+    margin-bottom: 8px; /* Adds vertical spacing between items */
+  }
 
   .algorithm {
     border: 2px solid #4CAF50;
@@ -156,5 +159,12 @@ body {
   .algorithm li {
     margin: 10px 0;
   }
-  
+  .important-box {
+    border: 2px solid #f39c12;
+    background-color: #fef9e7;
+    padding: 15px;
+    border-radius: 5px;
+    font-family: Arial, sans-serif;
+    color: #333;
+  }
   
