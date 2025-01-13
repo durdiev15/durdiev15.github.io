@@ -167,4 +167,30 @@ body {
     font-family: Arial, sans-serif;
     color: #333;
   }
+
+  /* Dropdown TOC for mobile */
+.toc-dropdown {
+  display: none; /* Hidden by default */
+  margin: 10px 0;
+  padding: 10px;
+}
+
+.toc-dropdown select {
+  width: 100%; /* Full width for mobile */
+  padding: 8px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Media Query for Mobile Devices */
+@media (max-width: 768px) {
+  .toc {
+    display: none; /* Hide fixed TOC */
+  }
+  .toc-dropdown {
+    display: block; /* Show dropdown TOC */
+  }
+}
   
