@@ -58,7 +58,7 @@ body {
   
   .project-list a {
     text-decoration: none; /* Remove underline from links */
-    color: #007bff; /* Use a nice blue color for links */
+    color: #034791; /* Use a nice blue color for links */
     font-weight: bold; /* Make links stand out */
     transition: color 0.3s ease; /* Add smooth hover effect */
   }
@@ -108,7 +108,7 @@ body {
   .container {
     font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     padding-top: 200px !important; /* Pushes the container down */
-    max-width: 800px !important;
+    max-width: 100% !important;
     margin: 0 auto !important;
     padding: 20px !important;
     margin-left: 280px !important; /* TOC width + padding */
@@ -191,6 +191,51 @@ body {
   }
   .toc-dropdown {
     display: block; /* Show dropdown TOC */
+    margin-top: 20px;
   }
+}
+@media (max-width: 1024px) {
+  .container {
+    margin-left: 0;
+    padding: 1rem;
+  }
+  header, footer {
+    text-align: center;
+    padding: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+  header, footer {
+    padding: 10px;
+  }
+  .container {
+    padding: 1rem;
+    margin: 0;
+  }
+}
+
+.subfigure-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  justify-items: center;
+  align-items: center;
+}
+.subfigure {
+  text-align: center;
+}
+.subfigure img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+.subfigure caption {
+  margin-top: 5px;
+  font-style: italic;
 }
   
