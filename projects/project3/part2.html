@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced Digital Image Processing with Python</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        }
+    };
+</script>
+
+  <!-- <script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js"></script> -->
+    <!-- Highlight.js CSS for a theme (e.g., "Atom One Dark") -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-light.min.css" rel="stylesheet" />
+    <!-- Highlight.js JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</head>
+<body>
+  <header style="position: fixed; width: 100%;">
+    <h1>Advanced Digital Image Processing with Python (Part-2)</h1>
+    <nav>
+        <a href="../../index.html">Home</a>
+        <a href="../../projects.html">Projects</a>
+    </nav>
+  </header>
+
+  <main>
+    <section style="margin-top: 100px;">
+        <!-- <nav id="toc"> -->
+        <div class="toc">
+            <h1 style="color: #01579b; font-weight: bold; font-size: 30px;"> Table of Contents</h1>
+            <ul>
+                <li><a href="#InverseProblemSection">Total Variation Denoising and Gradient Descent</a></li>
+                <ul>
+                    <li><a href="#InverseProblem">What Is an Inverse Problem?</a></li>
+                    <li><a href="#GradientDescent">Gradient Descent Approach </a></li>
+                    <li><a href="#GDPython">Implementing Gradient Descent in Python</a></li>
+                    <li><a href="#conclusion3">Conclusion</a></li>
+                </ul>
+                <li><a href="#XRayImaging">X-Ray Imaging</a></li>
+                <ul>
+                    <li><a href="#ElectromagneticSpectrum">Electromagnetic Spectrum</a></li>
+                    <li><a href="#MathematicsXRays">Mathematics of X-Rays</a></li>
+                    <li><a href="#RadonTransform">Radon Transform</a></li>
+                    <li><a href="#Sinogram">Sinogram</a></li>
+                    <li><a href="#FilteredBackProjection">Filtered Back Projection</a></li>
+                    <li><a href="#conclusion4">Conclusion</a></li>
+                </ul>
+            </ul>
+        </div>
+        <!-- </nav> -->
+    </section>
+
+<div class="container">    
+<section id="InverseProblemSection">
+    <h1 style="color: #01579b;">Total Variation Denoising and Gradient Descent</h1>
+    <p>We've all encountered noisy images. Whether it's a grainy photo taken in low light or a blurry snapshot from an old camera, 
+        noise obscures the clarity we want. But did you know that the process of 
+        cleaning these images is more than just a technical trick? 
+        It's a mathematical problem called an <b>inverse problem</b>, and it's 
+        at the heart of many modern imaging techniques.</p>
+</section>
+
+<section id="InverseProblem">
+    <h2 style="color: #01579b;">What Is an Inverse Problem?</h2>
+    <p>Let's think about how noise corrupts an image. 
+        Imagine you have a perfectly clean image, which we'll call \(u\). 
+        Before you see it, a process happens-maybe a bit of noise is added, or the image is 
+        blurred. What you end up with is the noisy image \(f\). Mathematically, we can describe this as:</p>
+    $$
+    f=Hu+\eta
+    $$
+    <p>where:</p>
+    <ul>
+        <li>\(f\) is the noisy image you observe.</li>
+        <li>\(u\) is the original clean image you want to recover.</li>
+        <li>\(H\) models the process that might blur or transform the image.</li>
+        <li>\(\eta\) is the noise added along the way.</li>
+    </ul>
+    <p>
+        Now here's the challenge: given only the noisy image \(f\), how do we figure out what the clean image 
+    \(u\) was? That's the inverse problem: working backward from the noisy result (\(f\)) to recover the original cause (\(u\)).
+    </p>
+
+    <b>
+        Why Is It So Hard?
+    </b>
+    <p>
+        The problem is hard because it's often <b>ill-posed</b>. Small changes in the noisy image \(f\) 
+        (like tiny differences in noise) can lead to large changes in the recovered image \(u\). 
+        Without additional information or constraints, the solution might not even be unique.
+    </p>
+    <b>
+        The Key: Regularization
+    </b><p>
+    To make this problem solvable, we add a bit of extra knowledge about what the clean image \(u\) should look like. 
+    This process is called <b>regularization</b>, we might assume that the clean image is smooth, 
+    but still allows for sharp edges (like the boundaries of objects).
+</p>
+<p>
+    We combine this assumption with the noisy image to create a balance between two goals:
+</p>
+<ol>
+    <li>The recovered image \(u\) should look similar to the noisy image \(f\) after accounting for noise.</li>
+    <li>The recovered image \(u\) should be smooth and well-behaved, without unnecessary noise.</li>
+</ol>
+<p>
+    Mathematically, this balance is written as:
+    $$\Phi(u)=\frac{1}{2}||Hu-f||^2 + \lambda\int|\nabla u| \;dx.$$
+    Here's what's happening in this equation:
+</p>
+<ul>
+    <li>The first term,\(\frac{1}{2}||Hu-f||^2\), is called the fidelity term - ensures the recovered image \(u\) is close to the observed image \(f\).</li>
+    <li>The second term, \(\lambda\int|\nabla u| \;dx\), is the regularization. It penalizes large gradients to reduce noise while preserving edges.</li>
+    <li>The parameter \(\lambda\) lets us control how much weight we give to smoothing versus fitting the noisy image.</li>
+</ul>
+
+<b>
+    How Do We Solve It?
+</b>
+<p>
+    To solve this problem, we use optimization algorithms. 
+    One popular approach is <strong>gradient descent</strong>, 
+    where we iteratively adjust the image \(u\) to minimize the total energy \(\Phi(u)\). 
+    Another powerful method is the <strong>Primal-Dual Hybrid Gradient algorithm</strong>, 
+    but we will first focus on gradient descent.
+</p>
+<p>
+    For simple denoising (where \(H\) is the identity), the equation simplifies to:
+    $$\Phi(u)=\frac{1}{2}||u-f||^2 + \lambda\int|\nabla u| \;dx.$$
+</p>
+<p>
+    This is the foundation of <strong>Total Variation (TV) denoising</strong>, 
+    a widely used method that balances noise removal with edge preservation.
+</p>
+</section>
+
+<section id="GradientDescent">
+    <h2 style="color: #01579b;">Gradient Descent Approach</h2>
+    <p> To solve the Total Variation denoising problem, 
+        we use gradient descent to minimize the functional \(\Phi(u)\). 
+        This functional has two main parts: the fidelity term and the regularization 
+        term. 
+    </p> 
+    <p> The fidelity term measures how well the current 
+        estimate \(u\) matches the noisy image \(f\). 
+        It is written as: 
+        \[ F(u) = \frac{1}{2} \|Hu - f\|^2, \] where \(H\) 
+        represents any transformations or blurring in the image process 
+        (or is just the identity operator for simple denoising). 
+        The gradient of this term is: \[ \nabla F(u) = H^*(Hu - f). \] 
+        Here, \(H^*\) is the adjoint operator of \(H\). 
+        This term essentially pulls \(u\) toward \(f\), making sure that \(Hu\) aligns with the observed noisy image. 
+    </p> 
+    <p> The regularization term comes from the TV of the image. 
+        It penalizes large gradients in \(u\), which correspond to sharp changes, 
+        while still allowing for important edges. The TV term is written as: 
+        \[ R(u) = \int_\Omega |\nabla u| \, dx = \int_\Omega \sqrt{\left(\frac{\partial u}{\partial x}\right)^2 + \left(\frac{\partial u}{\partial y}\right)^2} \, dx. \] 
+        Its gradient, which shows how to adjust \(u\) to reduce noise, is: \[ \nabla R(u) = \nabla \cdot \left( \frac{\nabla u}{|\nabla u|} \right). \] 
+        Here, \(\nabla u\) is the gradient of \(u\), which measures how \(u\) changes in the \(x\) and \(y\) directions, and \(|\nabla u|\) is its magnitude. 
+        The divergence operator, \(\nabla \cdot\), combines this information to guide the smoothing process. 
+    </p> 
+    <p> Combining these two parts, the total functional becomes: \[ \Phi(u) = F(u) + \lambda R(u), \] where \(\lambda\) 
+        controls the balance between fitting the noisy data and smoothing the image. 
+        The gradient of \(\Phi(u)\) is simply the sum of the gradients of the two terms: 
+        \[ \nabla \Phi(u) = H^*(Hu - f) + \lambda \nabla \cdot \left( \frac{\nabla u}{|\nabla u|} \right). \] 
+    </p> 
+    <p> Gradient descent helps us minimize \(\Phi(u)\) by iteratively updating \(u\) 
+        in the direction of the negative gradient. This can be written as: 
+        \[ u^{k+1} = u^k - \alpha \nabla\Phi(u^k) \]
+        where \(\alpha\) is the step size. Introducing the time variable \(t\), we have:
+        \[ \frac{\partial u}{\partial t} = \frac{u^{k+1} - u^k}{\alpha} = -\nabla \Phi(u). \] 
+        Substituting the gradient of \(\Phi(u)\), the update rule becomes: 
+        \[ \frac{\partial u}{\partial t} = \lambda \nabla \cdot \left( \frac{\nabla u}{|\nabla u|} \right) - H^*(Hu - f). \] 
+        This equation tells us how to adjust \(u\) over time to reduce noise while preserving important 
+        features like edges. As time progresses, the solution \(u\) gets closer to the denoised image 
+        we are looking for. 
+    </p> 
+</section>
+
+<section id="GDPython">
+    <h2 style="color: #01579b;">Implementing Gradient Descent in Python</h2>
+<p> Let's walk through how to implement gradient descent for TV denoising in Python. 
+The idea is to iteratively update the image \( u \) so that it reduces the functional \(\Phi(u)\), 
+balancing noise removal and edge preservation. </p> 
+<p> First, we'll import the libraries we need. We'll use <code>numpy</code> 
+for numerical calculations and <code>matplotlib</code> 
+for visualizing the results: 
+</p> 
+<pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt 
+</code></pre> 
+<p> Next, we define functions for the gradient and divergence operators. 
+These are essential for computing the Total Variation term, 
+which penalizes noise while preserving edges: 
+</p> 
+<pre><code class="language-python"># Gradient operators 
+def gradient(u): 
+    grad_x = np.roll(u, -1, axis=1) - u 
+    grad_y = np.roll(u, -1, axis=0) - u 
+    return grad_x, grad_y
+
+def divergence(grad_x, grad_y): 
+    div_x = grad_x - np.roll(grad_x, 1, axis=1) 
+    div_y = grad_y - np.roll(grad_y, 1, axis=0) 
+    return div_x + div_y 
+</code></pre> 
+    <p> To check if the functional 
+    \(\Phi(u)\) decreases during the optimization, we define a function to compute it. 
+    This will allow us to track the algorithm's progress: 
+</p> <pre><code class="language-python">def compute_phi(u, f): 
+    # Fidelity term 
+    fidelity = 0.5 * np.sum((H(u) - f) ** 2) 
+    # Regularization term (TV) 
+    grad_x, grad_y = gradient(u) 
+    reg = lambda_tv * np.sum(np.sqrt(grad_x2 + grad_y2 + 1e-8)) 
+    return fidelity + reg 
+</code></pre> 
+<p> Now, we implement the gradient descent algorithm. 
+    The function <code>tv_denoising_timestep</code> performs iterative updates to minimize 
+    \(\Phi(u)\): 
+</p> <pre><code class="language-python">def tv_denoising_timestep(f, H, H_adj, lambda_tv, dt, num_steps):
+    
+    Copy code
+    # Initialize u with the noisy image
+    u = f.copy()
+    phi_history = []  # To store the values of the functional
+    
+    
+    for _ in range(num_steps):
+        # Compute the fidelity term gradient: H^*(Hu - f)
+        fidelity_grad = H_adj(H(u) - f)
+    
+        # Compute the TV regularization term gradient
+        grad_x, grad_y = gradient(u)
+        magnitude = np.sqrt(grad_x**2 + grad_y**2 + 1e-8)  # Avoid division by zero
+        tv_grad = divergence(grad_x / magnitude, grad_y / magnitude)
+    
+        # Update u using the time-marching scheme
+        u += dt * (lambda_tv * tv_grad - fidelity_grad)
+    
+        # Compute and store the functional 
+        phi = compute_phi(u, f)
+        phi_history.append(phi)
+    
+    return u, phi_history
+    </code></pre> 
+    <p> To test this, we need a noisy image. 
+        The following function generates Gaussian noise, 
+        which we can add to a clean image: 
+    </p> 
+    <pre><code class="language-python"># Function to generate Gaussian noise 
+def add_gaussian_noise(image, mean=0.15, std=0.05): 
+    # Generate Gaussian noise with mean and std 
+    noise = np.random.normal(mean, std, image.shape)
+
+    # Add the noise to the image
+    noisy_image = image + noise
+    
+    # Clip to valid range [0, 1] if the image is normalized
+    return np.clip(noisy_image, 0, 1)</code></pre>
+    <p>
+        For this example, let's create a simple grayscale image with a square in the center. 
+        We'll add Gaussian noise to this image and then apply our Total Variation denoising function:
+    </p>
+    <pre><code class="language-python"># Example: Denoising a noisy image
+nx, ny = 128, 128
+original = np.zeros((nx, ny))
+original[32:96, 32:96] = 1  # Add a square
+
+# Add Gaussian noise
+noisy = add_gaussian_noise(original, mean=0.15, std=0.15) # original + noise_level * np.random.randn(nx, ny)
+
+# Identity operator (H and H_adj)
+H = lambda u: u
+H_adj = lambda u: u
+
+# Solve Equation (6.49) using the time-marching method
+lambda_tv = 0.2
+dt = 1e-3
+num_steps = 1500
+denoised, phi_history = tv_denoising_timestep(noisy, H, H_adj, lambda_tv, dt, num_steps)
+</code></pre>
+<p>and visualize the results</p>
+<pre><code class="language-python"># Visualization
+plt.figure(figsize=(16, 5))
+
+# Plot images
+plt.subplot(1, 3, 1)
+plt.title("Original Image")
+plt.imshow(original, cmap='gray')
+plt.axis('off')
+
+plt.subplot(1, 3, 2)
+plt.title("Noisy Image")
+plt.imshow(noisy, cmap='gray')
+plt.axis('off')
+
+plt.subplot(1, 3, 3)
+plt.title("Denoised Image")
+plt.imshow(denoised, cmap='gray')
+plt.axis('off')
+
+plt.tight_layout()
+plt.show()
+</code></pre>
+<img src="gd.png" 
+        alt="Denoised image applying total variation regularization." 
+        style="max-width: 100%; height: auto; border: 0px solid #ddd; margin: 20px auto; display: block;">
+
+<pre><code class="language-python"># Plot the functional history
+plt.figure(figsize=(8, 5))
+plt.plot(phi_history, label=r"$\Phi(u)$")
+plt.ylim([0, np.max(np.array(phi_history)) + 100])
+plt.xlabel("Iteration")
+plt.ylabel(r"$\Phi(u)$")
+plt.title("Convergence of the Functional")
+plt.legend()
+plt.grid()
+plt.show()</code></pre>
+
+<p>
+    The plot below shows the minimization of the functional $\Phi(u)$ during the gradient descent process for Total Variation (TV) denoising. At the start, the steep decrease indicates rapid noise reduction and edge preservation, as the initial solution is far from optimal. This is because gradient descent efficiently moves in the direction of the negative gradient to minimize the energy functional. As iterations continue, the decrease becomes more gradual, showing fine-tuning of the denoised image. Eventually, the curve flattens, indicating convergence to the minimum, where further iterations bring minimal change. This pattern confirms that the gradient descent is effectively minimizing $\Phi(u)$.
+</p>
+<img src="functional.png" 
+        alt="Denoised image applying total variation regularization." 
+        style="max-width: 70%; height: auto; border: 0px solid #ddd; margin: 20px auto; display: block;">
+</section>
+
+<section id="conclusion3">
+    <h2 style="color: #01579b;">Conclusion</h2>
+    <p>
+        We explored the fascinating concept of solving inverse problems in image denoising using the 
+        TV method. We started with the mathematical formulation of the problem, 
+        understanding how the fidelity term ensures closeness to the noisy image and the 
+        regularization term helps reduce noise while preserving edges. 
+        By implementing gradient descent, we demonstrated how to iteratively minimize the functional 
+        \(\Phi(u)\) to recover a clean image from a noisy one.
+    </p>
+</section>
+
+<section id="XRayImaging">
+    <h1 style="color: #01579b;">X-Ray Imaging</h1>
+    <p>X-ray imaging is a powerful technique that lets us see inside objects without physically cutting them open. It works by passing X-rays through an object and capturing the pattern of absorption on the other side. Different materials absorb X-rays at different rates, so dense objects like bones or metal appear brighter, while softer tissues look darker. Here, we explore how X-ray images are formed using the <b>Beer-Lambert law</b>, which explains how X-rays are absorbed as they pass through materials. We also dive into advanced techniques like <b>sinograms</b> and <b>filtered back projection</b>, which help reconstruct clear images from raw X-ray data. This understanding helps us see how X-ray imaging is used in medical diagnostics and industrial inspections, giving us a deeper appreciation of its importance in everyday life.</p>
+</section>
+
+<section id="ElectromagneticSpectrum">
+    <h2 style="color: #01579b;">Electromagnetic Spectrum</h2>
+    <p>
+        <p>To understand X-rays, we need to first talk about the electromagnetic spectrum. Think of it as a range of all possible types of light, from the very high-energy gamma rays to the low-energy radio waves. Somewhere in the middle of this spectrum, we find visible light—the light you see every day.</p>
+        
+        <p>Now, imagine we zoom into the higher-energy part of the spectrum. This is where X-rays live. X-rays are like light, but with much more energy. This high energy is what allows X-rays to pass through materials like your skin and soft tissue, but not denser materials like bone or metal.</p>
+        
+        <p>When you think about X-rays, it helps to picture them as tiny packets of energy called photons. Each photon moves at the speed of light and carries a certain amount of energy. In the case of X-rays, this energy is high enough to interact with the atoms inside objects, which is why they're so good at revealing what's hidden beneath the surface.</p>
+        <img src="em_spectrium.png" 
+             style="max-width: 100%; height: auto; border: 0px solid #ddd; margin: 20px auto; display: block;">
+</section>
+
+<section id="MathematicsXRays">
+    <h2 style="color: #01579b;">Mathematics of X-Rays</h2>
+    <p>X-rays are fascinating because they let us "see" inside objects without cutting them open. But how does this work, mathematically? Let's explore this in a simple and intuitive way.</p>
+    <b>What is the Beer-Lambert Law?</b>
+    <p>The Beer-Lambert Law describes how light or X-rays are absorbed by a material. Imagine shining a light through a foggy window. Some of the light is absorbed, and some passes through. The law gives us a way to calculate how much light (or X-ray energy) makes it through. Mathematically, it's written as:
+        $$I=I_0 e^{\mu l}$$
+        where \(I_0\) is the initial intensity of the X-ray beam, \(I\) is the intensity of the X-ray after passing through the material, \(\mu\) is the attenuation coefficient of the material (how much it absorbs X-rays), and \(l\) is the thickness of the material.
+        </p>
+        <p>This equation shows that the thicker or denser the material (\(l\) or \(\mu\)), the less X-ray energy reaches the other side.</p>
+
+    <b>How Does This Relate to X-Ray Imaging?</b>
+
+    <p>When X-rays pass through an object, they encounter layers of different materials (like bone, tissue, or metal). Each material has a different attenuation coefficient (\(\mu\)), so the X-rays lose energy in different amounts as they pass through.</p>
+<p>Detectors (the figure left) on the other side measure the remaining X-ray intensity, \(I\). By applying the Beer-Lambert Law, we can figure out the total attenuation along the path of the X-rays.</p>
+<figure>
+  <img src="x_ray.png" 
+       style="width: 32%; display: inline-block; margin-right: 1%;" 
+       alt="X-rays passing through an object and being detected">
+  <img src="projection_x_ray.png" 
+       style="width: 45%; display: inline-block; margin-right: 1%;" 
+       alt="Coordinates s along the ray, angle theta, and projection P(t, theta)">
+  <figcaption>
+    Figure: (Left) X-rays passing through the object, with the detector capturing data. 
+    (Right) Coordinate system showing s (along the ray), angle \(\theta\), position \(t\), and the projection \(P(t,\theta)\).
+  </figcaption>
+</figure>
+
+<b>From Attenuation to Projections</b>
+
+<p>Here's where things get interesting. Instead of a single layer, imagine the X-rays passing through many small parts of an object. For each tiny part, the Beer-Lambert Law applies. When we sum up the contributions from all these parts, we get:
+$$
+\ln\left(\frac{I}{I_0}\right)=\int\mu(x,y) ds
+$$
+where \(\mu(x,y)\) is the attenuation coefficient at each point inside the object. Or in the coordinate system \((t,\theta)\):
+\[
+      \frac{I}{I_0}=\exp\left[ -\int_{-\infty}^{\infty}\mu(t\cos\theta-s\sin\theta, t\sin\theta + s\cos\theta) \, ds \right]
+      \]
+</p>
+<p>
+    This equation shows how the X-ray intensity decreases as it travels through the object. The integral sums up the effects of all the material the X-ray travels through along its path (the figure right).
+  </p>
+  <p>
+    To work with the measured data, we take the logarithm of the ratio \(I/I_0\), which gives us:
+\[
+      p(t,\theta)=-\ln\frac{I(t,\theta)}{I_0}=\int_{-\infty}^{\infty}\mu(t\cos\theta-s\sin\theta, t\sin\theta + s\cos\theta) \, ds
+      \]
+  </p>
+  <p>
+    Here, \(p(t, \theta)\) is called the <strong>projection</strong>. It represents the total attenuation along the X-ray path for a given angle \(\theta\). In simple terms, this equation is like summing up all the absorption along the X-ray beam and expressing it in a form that's easy to handle mathematically.
+  </p>
+  <p>
+    These projections are the building blocks for CT (<b>computed tomography</b>) reconstruction. By collecting projections from many angles, we gather the information needed to recreate the internal structure of the object. This step connects what we measure (attenuation) to what we want to find (the internal structure).
+  </p>
+</section>
+
+<section id="RadonTransform">
+    <h2 style="color: #01579b;">Radon Transform</h2>
+    <p>
+        When we perform a CT scan, we capture a series of projections, \(p(t,\theta)\), by sending X-rays through the object from different angles, \(\theta\). For parallel beam geometry, we typically use angles between 0° and 180°. Each projection represents how much X-ray energy is absorbed along straight lines for a specific angle.
+      </p>
+      <p>
+        This process, where we transform the internal structure of the object, \(\mu(x,y)\) (the attenuation coefficients), into projection data, \(p(t,\theta)\), is what we call the <strong>Radon transform</strong>. You can think of it as taking snapshots of the "shadows" of the object from different viewpoints.
+      </p>
+    <p>
+        You can easily implement the Radon transform in Python using the <code>skimage.transform</code> library. Here's a quick example:
+    </p>
+<pre><code class="language-python">from skimage.transform import radon
+
+# Compute projections for a range of angles
+sinogram = radon(image, theta=theta) # projections
+</code></pre>
+<p>
+    This code takes your input image and a set of angles (<code>theta</code>) to generate the projections.
+</p>
+</section>
+
+<section id="Sinogram">
+    <h2 style="color: #01579b;">Sinogram</h2>
+    <p>When we talk about CT reconstruction, the term <strong>sinogram</strong> often comes up. At first, it might sound complicated, but it's actually a simple way to represent the data collected during a CT scan. Let's break it down so it makes sense.</p>
+<p>Imagine you're looking at an object, and you're taking X-ray projections from many different angles. Each projection is like a shadow of the object from that specific viewpoint. Now, as you rotate around the object, you gather a whole set of these shadows, one for each angle.</p>
+<img src="projections.png" 
+     alt="Projections at 0°, 45° and 90°." 
+     style="max-width: 100%; height: auto; border: 0px solid #ddd; margin: 20px auto; display: block;">
+<p>Here's where the sinogram comes in. Instead of showing all these shadows as separate images, we stack them together in a single plot:</p>
+<img src="sinogram.png" 
+     alt="Sinogram." 
+     style="max-width: 70%; height: auto; border: 0px solid #ddd; margin: 20px auto; display: block;">
+<p>On the right plot:</p>
+<ul>
+  <li>The horizontal axis represents the angle of the X-ray projection.</li>
+  <li>The vertical axis represents the position along the detector for that angle.</li>
+</ul>
+<p>When we do this, the plot we get is called a sinogram (the above figure right). The name comes from the fact that if you have a single point inside the object, it creates a curve in the sinogram that looks like a sine wave as you rotate around it. Multiple points in the object combine to form a complex pattern in the sinogram.</p>
+<p>So, when you hear "sinogram," think of it as the collection of all the X-ray data from different angles, organized in a way that makes reconstruction possible. It's not just a tool for experts—it's something you can explore and even visualize with Python to see how X-rays build up a picture of what's inside an object.</p>
+<pre><code class="language-python">import numpy as np
+import matplotlib.pyplot as plt
+from skimage.transform import radon
+from skimage.draw import ellipse, disk
+
+# Step 1: Generate the Phantom
+# Create an empty array (phantom)
+size = 400
+image = np.zeros((size, size))
+
+# Add an elliptical inclusion
+rr, cc = ellipse(size // 2, size // 2, size // 3, size // 5, shape=image.shape)
+image[rr, cc] = 1  # Fill the ellipse with value 1
+
+# Add a circular inclusion inside the ellipse
+circle_center = (size // 2, size // 2 + size // 10)
+radius = size // 30
+rr, cc = disk(circle_center, radius, shape=image.shape)
+image[rr, cc] = 0.5  # Fill the circle with value 0.5 (different from ellipse)
+
+# Step 2: Define angles for projections
+theta = np.linspace(0., 180., max(image.shape), endpoint=False)
+
+# Step 3: Compute the sinogram using the Radon transform
+sinogram = radon(image, theta=theta, circle=True)
+
+# Step 4: Plot the phantom and its sinogram
+plt.figure(figsize=(12, 6))
+
+# Plot the Phantom
+plt.subplot(1, 2, 1)
+plt.title("Generated Phantom")
+plt.imshow(image, cmap='gray')
+plt.axis('off')
+
+# Plot the Sinogram
+plt.subplot(1, 2, 2)
+plt.title("Sinogram")
+plt.imshow(sinogram, cmap='gray', aspect='auto',
+           extent=(theta.min(), theta.max(), 0, sinogram.shape[0]))
+plt.xlabel("Projection Angle (degrees)")
+plt.ylabel("Detector Position")
+
+plt.tight_layout()
+plt.show()
+</code></pre>
+</section>
+
+<section id="FilteredBackProjection">
+    <h2 style="color: #01579b;">Filtered Back Projection</h2>
+    <p>Filtered Back Projection (FBP) is a method we use to reconstruct images in CT scans from their X-ray projections. To understand it, let's imagine you're trying to recreate an object by combining projections taken from different angles. FBP is the process that makes this combination precise and accurate.</p>
+<p>The key idea behind FBP comes from something called the <a href="https://en.wikipedia.org/wiki/Projection-slice_theorem" target="_blank"><strong>Fourier slice theorem</strong></a>. This theorem tells us that the projections we measure with X-rays are like slices of the object's 2D Fourier transform (a mathematical way to represent images in terms of frequencies). Using this relationship, we can build the full Fourier transform of the object from the projections.</p>
+<p>Here's how it works. First, we take the Fourier transform of each projection. Then, in the frequency domain, we apply a filter to the transformed projections. This filter is important because it helps enhance the details in the reconstruction while reducing blurring. After filtering, we interpolate the data in Fourier space to piece together the complete 2D Fourier transform of the object.</p>
+<p>Once we have this, the last step is to perform an inverse Fourier transform to convert the frequency information back into the spatial domain. This gives us the reconstructed image of the object.</p>
+<img src="https://assets.zyrosite.com/AoPv3k1VRlsGjpP7/fbp-mP425pRPokSJaeno.png" 
+     alt="Reconstructed image using FBP ." 
+     style="max-width: 70%; height: auto; border: 0px solid #ddd; margin: 20px auto; display: block;">
+<p>
+This code performs image reconstruction using the FBP method.
+</p>
+<pre><code class="language-python">from skimage.transform import iradon
+reconstructed_image = iradon(sinogram, theta=theta, filter_name='ramp')
+</code></pre>
+<p>
+When you have a sinogram (the collection of X-ray projections at different angles), you can use the 
+<code>iradon</code> function (inverse Radon transform) from the <code>skimage</code> library to reconstruct the original image. 
+Here, we pass the <code>sinogram</code> data, the corresponding angles (<code>theta</code>), and specify the 
+filter to use. In this case, the filter is <code>'ramp'</code>, which helps improve the clarity of the 
+reconstructed image by emphasizing the right frequencies and reducing blurring.
+</p>
+
+<p>FBP is widely used because it's one of the fastest ways to perform the inverse Radon transform. The only thing we need to adjust is the filter itself, which can be tuned to emphasize certain details or reduce noise in the image. In practice, you can think of FBP as a clever and efficient way to "unwrap" all the projection data into a clear and detailed picture of what's inside an object.</p>
+
+</section>
+
+<section id="conclusion4">
+    <h2 style="color: #01579b;">Conclusion</h2>
+    <p>X-ray imaging is an incredible tool that combines physics, mathematics, and technology to reveal what's hidden inside objects. From the Beer-Lambert Law to sinograms and the Filtered Back Projection method, we've seen how X-rays interact with materials and how we can reconstruct detailed images from their projections.</p>
+
+<p>Understanding these concepts not only helps you appreciate the science behind X-ray imaging but also opens the door to exploring them yourself with tools like Python. By connecting the dots between theory and practice, you can see how something as simple as a projection can lead to uncovering the unseen.</p>
+</section>
+
+</div>
+</main>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // Select all TOC links
+    const tocLinks = document.querySelectorAll(".toc a");
+
+    tocLinks.forEach(link => {
+    link.addEventListener("click", (e) => {
+        e.preventDefault(); // Prevent default anchor behavior
+        const targetId = link.getAttribute("href").substring(1); // Get the target ID
+        const targetElement = document.getElementById(targetId);
+
+        if (targetElement) {
+        const offset = 130; // Adjust this to match your header's height
+        const topPosition = targetElement.getBoundingClientRect().top + window.scrollY - offset;
+
+        // Scroll to the adjusted position
+        window.scrollTo({
+            top: topPosition,
+            behavior: "smooth"
+        });
+        }
+    });
+    });
+});
+</script>
+
+
+  <!-- <footer>
+    <p>&copy; 2025 Dilshod Durdiev</p>
+  </footer> -->
+</body>
+</html>
