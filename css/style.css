@@ -136,6 +136,23 @@ body {
     margin-bottom: 8px; /* Adds vertical spacing between items */
   }
 
+  .container-project {
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* padding-top: 200px !important; Pushes the container down */
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    /* padding: 20px !important; */
+    /* margin-left: 280px !important; TOC width + padding */
+    bottom: 50px !important;
+    line-height: 1.5 !important; /* Adds space between text lines */  
+  }
+  
+  .container-project li {
+    margin-bottom: 8px; /* Adds vertical spacing between items */
+  }
+
+  
+
   .algorithm {
     border: 2px solid #4CAF50;
     border-radius: 8px;
