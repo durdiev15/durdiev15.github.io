@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exploratory Data Analysis: PM2.5 Pollution in Tashkent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Style adopted from the Data Acquisition page for consistency -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #d1d5db;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+        }
+        .card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 1px solid #e5e7eb;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .stat-card p.value {
+             line-height: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        
+        <header class="text-center mb-16">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-2">The Anatomy of Tashkent's Air Pollution</h1>
+            <p class="text-lg md:text-xl text-gray-600">An Exploratory Data Analysis of PM2.5 and its Drivers</p>
+        </header>
+
+        <main class="space-y-20">
+
+            <section id="overview">
+                <h2 class="text-3xl font-bold text-center mb-8">High-Level Overview: The State of the Air</h2>
+                <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">Before building a predictive model, we must first understand the data. This initial analysis explores the fundamental characteristics of PM2.5 pollution in Tashkent, revealing a pattern of frequent low-level pollution punctuated by severe, high-impact events.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                    <div class="card stat-card">
+                        <h3 class="text-lg font-semibold text-blue-600">Mean PM2.5</h3>
+                        <p id="mean-pm25" class="text-5xl font-extrabold mt-2 value">--</p>
+                        <p class="text-sm text-gray-500">µg/m³</p>
+                    </div>
+                    <div class="card stat-card">
+                        <h3 class="text-lg font-semibold text-blue-600">Median PM2.5</h3>
+                        <p id="median-pm25" class="text-5xl font-extrabold mt-2 value">--</p>
+                        <p class="text-sm text-gray-500">µg/m³</p>
+                    </div>
+                    <div class="card stat-card">
+                        <h3 class="text-lg font-semibold text-red-600">Maximum Recorded</h3>
+                        <p id="max-pm25" class="text-5xl font-extrabold mt-2 value">--</p>
+                        <p class="text-sm text-gray-500">µg/m³</p>
+                    </div>
+                </div>
+                <div class="card mt-8">
+                    <h3 class="text-xl font-bold text-center mb-4">Distribution of PM2.5 Concentrations</h3>
+                    <p class="text-center text-gray-600 mb-4">The data is heavily right-skewed, confirming that while moderate pollution is common, the primary concern comes from less frequent but extremely high pollution events. This characteristic is crucial for model training and evaluation.</p>
+                    <div class="chart-container">
+                        <canvas id="pm25Histogram"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section id="temporal">
+                <h2 class="text-3xl font-bold text-center mb-8">Uncovering Temporal Patterns</h2>
+                <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">Air pollution is not random; it follows distinct cycles. By analyzing the data across different time scales, we can identify the seasonal, weekly, and daily rhythms of PM2.5 in Tashkent, providing strong predictive signals for our model.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">The Winter Peak: A Strong Seasonal Cycle</h3>
+                        <p class="text-gray-600 mb-4">The most prominent pattern is a dramatic increase in PM2.5 during the cold winter months (December-February), likely due to a combination of heating emissions and meteorological conditions that trap pollutants.</p>
+                        <div class="chart-container">
+                            <canvas id="monthlyTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">The Daily Grind: Diurnal & Weekly Patterns</h3>
+                        <p class="text-gray-600 mb-4">Pollution also follows a daily rhythm, with peaks often corresponding to morning and evening rush hours. A slight decrease is observable on weekends, reflecting changes in traffic and commercial activity.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="h-64">
+                                <canvas id="hourlyTrendChart"></canvas>
+                            </div>
+                            <div class="h-64">
+                                <canvas id="weeklyTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="meteorology">
+                 <h2 class="text-3xl font-bold text-center mb-8">The Role of Meteorology: Weather as a Driver</h2>
+                 <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">Weather is arguably the most significant factor controlling day-to-day pollution levels. Our analysis reveals strong physical relationships between PM2.5 and key atmospheric variables, confirming their importance as predictive features.</p>
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">The Lid on the City: Boundary Layer Height</h3>
+                        <p class="text-gray-600 mb-4">There is a clear inverse relationship between Boundary Layer Height (BLH) and PM2.5. When the BLH is low, it acts like a lid, trapping pollutants near the surface and causing concentrations to spike. This is a critical predictor for severe pollution events.</p>
+                        <div class="chart-container">
+                            <canvas id="blhScatterChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">Wind Direction & High Pollution Events</h3>
+                        <p class="text-gray-600 mb-4">This wind rose shows the frequency of high-pollution days (>150 µg/m³) coming from different directions. A dominant north-easterly component suggests a consistent source or transport pathway for pollutants impacting the sensor location.</p>
+                        <div class="chart-container">
+                            <canvas id="windRoseChart"></canvas>
+                        </div>
+                    </div>
+                 </div>
+            </section>
+
+             <section id="sources-eda">
+                <h2 class="text-3xl font-bold text-center mb-8">Inferring Sources: Local vs. Regional</h2>
+                <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">By correlating PM2.5 with satellite data and our engineered fire feature, we can start to distinguish between different types of pollution events.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                     <div class="card">
+                        <h3 class="text-xl font-bold mb-2">Local Emissions: Correlation with NO₂</h3>
+                        <p class="text-gray-600 mb-4">A positive correlation exists between PM2.5 and tropospheric NO₂, a proxy for traffic and industrial emissions. This suggests that a significant portion of PM2.5 is generated locally from combustion sources.</p>
+                        <div class="chart-container">
+                            <canvas id="no2ScatterChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-2">Regional Transport: Correlation with Fire Intensity</h3>
+                        <p class="text-gray-600 mb-4">While not as frequent, there is a clear relationship where high PM2.5 days can be associated with high upwind fire intensity, confirming that long-range smoke transport is a contributing factor to severe pollution episodes.</p>
+                        <div class="chart-container">
+                            <canvas id="fireScatterChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="text-center mt-20 py-6 border-t border-gray-200">
+            <p class="text-gray-600">This exploratory data analysis provides a foundational understanding of the complex factors driving PM2.5 pollution in Tashkent. The identified patterns and relationships confirm the value of the assembled dataset for building a robust predictive machine learning model.</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // Correct, stable URL for the raw CSV file
+        const finalDataUrl = 'https://raw.githubusercontent.com/durdiev15/durdiev15.github.io/main/data_cleaned_final.csv';
+
+        Papa.parse(finalDataUrl, {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                const data = results.data.filter(row => row['PM2.5'] != null && row['PM2.5'] >= 0);
+
+                // --- 1. Overview Section ---
+                updateOverview(data);
+
+                // --- 2. Temporal Patterns ---
+                plotTemporalCharts(data);
+
+                // --- 3. Meteorology ---
+                plotMeteorologyCharts(data);
+
+                // --- 4. Source Inference ---
+                plotSourceCharts(data);
+            },
+            error: function(error) {
+                console.error("Error fetching or parsing CSV:", error);
+                alert("Failed to load data for EDA. Please check the console for details.");
+            }
+        });
+
+        function updateOverview(data) {
+            const pm25Values = data.map(row => row['PM2.5']).sort((a, b) => a - b);
+            
+            const mean = pm25Values.reduce((a, b) => a + b, 0) / pm25Values.length;
+            const median = pm25Values[Math.floor(pm25Values.length / 2)];
+            const max = Math.max(...pm25Values);
+
+            document.getElementById('mean-pm25').textContent = mean.toFixed(1);
+            document.getElementById('median-pm25').textContent = median.toFixed(1);
+            document.getElementById('max-pm25').textContent = max.toFixed(1);
+
+            // Create Histogram
+            const bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, Infinity];
+            const labels = ['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100', '100-150', '150-200', '200+'];
+            const counts = new Array(labels.length).fill(0);
+            pm25Values.forEach(val => {
+                const binIndex = bins.findIndex(bin => val < bin) - 1;
+                if (binIndex >= 0) counts[binIndex]++;
+            });
+
+            new Chart(document.getElementById('pm25Histogram').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Number of Hours',
+                        data: counts,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(29, 78, 216, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: 'Frequency (Hours)' } }, x: { title: { display: true, text: 'PM2.5 Concentration (µg/m³)' } } } }
+            });
+        }
+
+        function plotTemporalCharts(data) {
+            // Monthly
+            const monthlyAvg = Array(12).fill(0).map(() => ({ sum: 0, count: 0 }));
+            data.forEach(row => {
+                const month = row.month - 1; // 0-indexed
+                if (month >= 0 && month < 12) {
+                    monthlyAvg[month].sum += row['PM2.5'];
+                    monthlyAvg[month].count++;
+                }
+            });
+            const monthlyData = monthlyAvg.map(m => m.count > 0 ? m.sum / m.count : 0);
+            new Chart(document.getElementById('monthlyTrendChart').getContext('2d'), {
+                type: 'line',
+                data: { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], datasets: [{ label: 'Average PM2.5', data: monthlyData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)', fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: 'Average PM2.5 (µg/m³)' } } } }
+            });
+
+            // Hourly
+            const hourlyAvg = Array(24).fill(0).map(() => ({ sum: 0, count: 0 }));
+            data.forEach(row => { hourlyAvg[row.hour].sum += row['PM2.5']; hourlyAvg[row.hour].count++; });
+            const hourlyData = hourlyAvg.map(h => h.count > 0 ? h.sum / h.count : 0);
+            new Chart(document.getElementById('hourlyTrendChart').getContext('2d'), {
+                type: 'line',
+                data: { labels: Array.from({length: 24}, (_, i) => i), datasets: [{ label: 'Average PM2.5', data: hourlyData, borderColor: '#10b981', tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Average by Hour of Day' }, legend: { display: false } }, scales: { y: { title: { display: false } }, x: { title: { display: true, text: 'Hour' } } } }
+            });
+
+            // Weekly
+            const weeklyAvg = Array(7).fill(0).map(() => ({ sum: 0, count: 0 }));
+            data.forEach(row => { weeklyAvg[row.day_of_week].sum += row['PM2.5']; weeklyAvg[row.day_of_week].count++; });
+            const weeklyData = weeklyAvg.map(d => d.count > 0 ? d.sum / d.count : 0);
+            new Chart(document.getElementById('weeklyTrendChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], datasets: [{ label: 'Average PM2.5', data: weeklyData, backgroundColor: '#f59e0b' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Average by Day of Week' }, legend: { display: false } }, scales: { y: { title: { display: false } } } }
+            });
+        }
+        
+        function getSampledData(data, xVar, yVar, sampleSize) {
+            const sampled = [];
+            const len = data.length;
+            if (len <= sampleSize) return data.map(row => ({ x: row[xVar], y: row[yVar] }));
+            for (let i = 0; i < sampleSize; i++) {
+                const randomIndex = Math.floor(Math.random() * len);
+                sampled.push({ x: data[randomIndex][xVar], y: data[randomIndex][yVar] });
+            }
+            return sampled;
+        }
+
+        function plotMeteorologyCharts(data) {
+            // BLH Scatter
+            const blhSample = getSampledData(data, 'blh', 'PM2.5', 500);
+            new Chart(document.getElementById('blhScatterChart').getContext('2d'), {
+                type: 'scatter',
+                data: { datasets: [{ label: 'Hourly Observation', data: blhSample, backgroundColor: 'rgba(59, 130, 246, 0.6)' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Boundary Layer Height (m)' } }, y: { title: { display: true, text: 'PM2.5 (µg/m³)' } } } }
+            });
+
+            // Wind Rose
+            const highPollutionDays = data.filter(row => row['PM2.5'] > 150);
+            const windRoseCounts = new Array(8).fill(0);
+            highPollutionDays.forEach(row => {
+                const angle = row.wind_dir_10m;
+                const index = Math.round(angle / 45) % 8;
+                windRoseCounts[index]++;
+            });
+            new Chart(document.getElementById('windRoseChart').getContext('2d'), {
+                type: 'polarArea',
+                data: { labels: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], datasets: [{ label: 'High Pollution Days', data: windRoseCounts, backgroundColor: ['rgba(239, 68, 68, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(107, 114, 128, 0.7)', 'rgba(239, 68, 68, 0.5)', 'rgba(245, 158, 11, 0.5)', 'rgba(16, 185, 129, 0.5)'] }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { r: { ticks: { backdropColor: 'transparent' } } } }
+            });
+        }
+
+        function plotSourceCharts(data) {
+            // NO2 Scatter
+            const no2Sample = getSampledData(data, 'tropospheric_NO2_column_number_density', 'PM2.5', 500);
+            new Chart(document.getElementById('no2ScatterChart').getContext('2d'), {
+                type: 'scatter',
+                data: { datasets: [{ label: 'Daily Average', data: no2Sample, backgroundColor: 'rgba(16, 185, 129, 0.6)' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Tropospheric NO₂ (mol/m²)' } }, y: { title: { display: true, text: 'PM2.5 (µg/m³)' } } } }
+            });
+
+            // Fire Scatter
+            const fireSample = getSampledData(data.filter(r => r.upwind_fire_intensity > 0), 'upwind_fire_intensity', 'PM2.5', 500);
+             new Chart(document.getElementById('fireScatterChart').getContext('2d'), {
+                type: 'scatter',
+                data: { datasets: [{ label: 'Daily Value', data: fireSample, backgroundColor: 'rgba(239, 68, 68, 0.6)' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { type: 'logarithmic', position: 'bottom', title: { display: true, text: 'Upwind Fire Intensity (FRP) - Log Scale' } }, y: { title: { display: true, text: 'PM2.5 (µg/m³)' } } } }
+            });
+        }
+
+    </script>
+</body>
+</html>
