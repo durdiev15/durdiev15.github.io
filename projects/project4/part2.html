@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tashkent PM2.5: Data Cleaning & Preprocessing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Added PapaParse library to parse CSV data from URL -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Using Inter font from the data acquisition page for consistency -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Using styles from the data acquisition page for consistency -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .code-block {
+            background-color: #1f2937; /* gray-800 */
+            color: #d1d5db; /* gray-300 */
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+        }
+        .code-block .comment { color: #6b7280; } /* gray-500 */
+        .code-block .keyword { color: #fb923c; } /* orange-400 */
+        .code-block .string { color: #a5b4fc; } /* indigo-300 */
+        .code-block .function { color: #60a5fa; } /* blue-400 */
+        .code-block .number { color: #f87171; } /* red-400 */
+        .card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            /* max-width: 600px; <-- This line was removed to make charts responsive */
+            margin-left: auto;
+            margin-right: auto;
+            height: 320px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .arrow {
+            position: relative;
+            padding-left: 2rem;
+        }
+        .arrow::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.5rem;
+            color: #2563eb; /* blue-600 */
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        
+        <header class="text-center mb-12">
+            <!-- Updated header style -->
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-2">PM2.5 Forecast for Tashkent</h1>
+            <p class="text-lg text-gray-600 max-w-3xl mx-auto">The Journey from Raw Data to a Powerful Machine Learning Dataset</p>
+        </header>
+
+        <main class="space-y-16">
+
+            <section id="sources">
+                <h2 class="text-3xl font-bold text-center mb-8 text-gray-900">Assembling the Puzzle: Data Sources</h2>
+                <!-- Using a lighter background for the container div -->
+                <div class="max-w-5xl mx-auto p-6 bg-gray-100/50 rounded-xl">
+                    <p class="text-center text-lg mb-8 text-gray-600">To accurately model air pollution, we must look beyond a single data point. Our approach fuses six distinct categories of data, each providing a unique piece of the puzzle, from ground-level chemistry to atmospheric physics and satellite observations.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+                        <!-- Updated card styles -->
+                        <div class="card">
+                            <span class="text-5xl">📍</span>
+                            <h3 class="text-xl font-bold mt-2 text-gray-800">Ground-Truth</h3>
+                            <p class="mt-1 text-gray-600">Hourly PM2.5 and O₃ readings from a sensor in Tashkent. This is our core target data.</p>
+                        </div>
+                        <div class="card">
+                            <span class="text-5xl">🌡️</span>
+                            <h3 class="text-xl font-bold mt-2 text-gray-800">Atmospheric Physics</h3>
+                            <p class="mt-1 text-gray-600">ERA5 Reanalysis data providing hourly weather and crucial variables like Boundary Layer Height.</p>
+                        </div>
+                        <div class="card">
+                            <span class="text-5xl">🛰️</span>
+                            <h3 class="text-xl font-bold mt-2 text-gray-800">Satellite Aerosols</h3>
+                            <p class="mt-1 text-gray-600">Daily MODIS satellite data showing Aerosol Optical Depth (AOD), a top-down view of pollution.</p>
+                        </div>
+                        <div class="card">
+                            <span class="text-5xl">💨</span>
+                            <h3 class="text-xl font-bold mt-2 text-gray-800">Satellite Trace Gas</h3>
+                            <p class="mt-1 text-gray-600">Daily Sentinel-5P data tracking NO₂, a key proxy for traffic and industrial emissions.</p>
+                        </div>
+                        <div class="card">
+                            <span class="text-5xl">🔥</span>
+                            <h3 class="text-xl font-bold mt-2 text-gray-800">Biomass Burning</h3>
+                            <p class="mt-1 text-gray-600">NASA FIRMS data tracking regional fire locations and intensity to account for smoke events.</p>
+                        </div>
+                        <div class="card">
+                            <span class="text-5xl">🗺️</span>
+                            <h3 class="text-xl font-bold mt-2 text-gray-800">Static Context</h3>
+                            <p class="mt-1 text-gray-600">Geographical data (roads, industry) and public holidays to provide local context to the model.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="cleaning">
+                <h2 class="text-3xl font-bold text-center mb-8 text-gray-900">Forging the Data: The Cleaning Process</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                    <div class="card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Handling Invalid Sensor Readings</h3>
+                        <p class="mb-4 text-gray-600">Physical measurements like PM2.5 and O₃ cannot be negative. Sentinel values (-999) indicate missing data, while small negative numbers indicate sensor noise near zero. We correct these to be physically plausible before any analysis.</p>
+                        <div class="flex justify-around items-center text-center p-4 bg-gray-100 rounded-lg">
+                            <div>
+                                <p class="text-2xl font-mono text-red-500">-999</p>
+                                <p class="text-sm">Invalid PM2.5</p>
+                            </div>
+                            <span class="text-3xl font-bold text-blue-600">→</span>
+                            <div>
+                                <p class="text-2xl font-mono text-gray-500">NaN</p>
+                                <p class="text-sm">Missing Value</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-around items-center text-center p-4 bg-gray-100 rounded-lg mt-4">
+                            <div>
+                                <p class="text-2xl font-mono text-red-500">-0.01</p>
+                                <p class="text-sm">Noisy O₃ Reading</p>
+                            </div>
+                            <span class="text-3xl font-bold text-blue-600">→</span>
+                             <div>
+                                <p class="text-2xl font-mono text-green-600">0.00</p>
+                                <p class="text-sm">Clamped at Zero</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Filtering Satellite Data for Quality</h3>
+                        <p class="mb-4 text-gray-600">Satellite data is unusable if the sensor's view is obscured by clouds. We use the provided Quality Assurance (QA) flags to filter out low-quality data, ensuring only clear-sky observations are used. This significantly improves data reliability.</p>
+                        <div class="chart-container">
+                            <canvas id="qualityFilterChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="engineering">
+                <h2 class="text-3xl font-bold text-center mb-8 text-gray-900">The Art of Integration & Feature Engineering</h2>
+                <div class="space-y-8">
+                    <div class="card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">Intelligent Imputation of Data Gaps</h3>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                            <div>
+                                <h4 class="text-lg font-semibold text-gray-700 mb-2">Seasonal Imputation for Ozone (O₃)</h4>
+                                <p class="mb-4 text-gray-600">Large gaps in sensor data cannot be ignored. For a year-long gap in Ozone data, a simple fill is insufficient. We use seasonal imputation, filling missing values with the historical average for that specific month and hour, preserving the natural cycles of the data.</p>
+                                <div class="chart-container">
+                                    <canvas id="imputationChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <h4 class="text-lg font-semibold text-gray-700 mb-2">KNN Imputation for PM2.5</h4>
+                                <p class="mb-4 text-gray-600">For our primary target, PM2.5, we use a more sophisticated approach: <strong>K-Nearest Neighbors (KNN) Imputation</strong>. This method fills missing values by finding the 'k' most similar data points based on all other available features (like temperature, wind, etc.) and using their values to estimate the missing one.</p>
+                                <pre class="code-block"><code class="language-python"><span class="comment"># Scale numeric features before imputation</span>
+scaler = StandardScaler()
+df_scaled = scaler.fit_transform(df_numeric)
+
+<span class="comment"># Impute using 5 nearest neighbors</span>
+imputer = KNNImputer(n_neighbors=<span class="number">5</span>)
+df_imputed = imputer.fit_transform(df_scaled)
+
+<span class="comment"># Inverse transform to original scale</span>
+df_imputed = pd.DataFrame(
+    scaler.inverse_transform(df_imputed), 
+    columns=df_numeric.columns
+)
+df_imputed[<span class="string">'datetime'</span>] = datetime_col.values</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- NEW CARD FOR THE PM2.5 PLOT -->
+                    <div class="card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Visualizing PM2.5 Imputation Results</h3>
+                        <p class="mb-4 text-gray-600">The plot below shows the KNN imputer in action on a sample of the data from December 2018. The red line shows the original PM2.5 data, with visible gaps where the sensor readings were missing. The dashed blue line shows how the algorithm has intelligently filled these gaps, creating a continuous and complete time series.</p>
+                        <div class="chart-container mt-6">
+                            <canvas id="pm25ImputationChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Creating Powerful New Features</h3>
+                        <p class="mb-4 text-gray-600">Raw data is just the beginning. We engineer new features to give the model more predictive power. This involves converting raw inputs into more meaningful variables that capture physical processes and temporal patterns.</p>
+                        <div class="space-y-4 mt-6">
+                            <div class="flex items-center p-3 bg-gray-100 rounded-lg">
+                                <div class="flex space-x-2">
+                                    <span class="font-mono bg-blue-100 text-blue-800 px-2 py-1 rounded">u10</span>
+                                    <span class="font-mono bg-blue-100 text-blue-800 px-2 py-1 rounded">v10</span>
+                                </div>
+                                <div class="arrow flex-grow text-right">
+                                    <span class="font-mono bg-gray-700 text-white px-2 py-1 rounded">Wind Speed & Direction</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center p-3 bg-gray-100 rounded-lg">
+                                <span class="text-3xl mr-4">🗓️</span>
+                                <div class="arrow flex-grow text-right">
+                                    <div class="flex space-x-2 justify-end flex-wrap gap-2">
+                                        <span class="font-mono bg-gray-700 text-white px-2 py-1 rounded">Hour</span>
+                                        <span class="font-mono bg-gray-700 text-white px-2 py-1 rounded">DayOfWeek</span>
+                                        <span class="font-mono bg-gray-700 text-white px-2 py-1 rounded">Month</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center p-3 bg-gray-100 rounded-lg">
+                                <span class="font-mono bg-blue-100 text-blue-800 px-2 py-1 rounded">PM2.5 (t-1)</span>
+                                <div class="arrow flex-grow text-right">
+                                     <span class="font-mono bg-gray-700 text-white px-2 py-1 rounded">Lagged PM2.5 Feature</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+             <section id="final">
+                <h2 class="text-3xl font-bold text-center mb-8 text-gray-900">The Final Product: A Model-Ready Dataset</h2>
+                <div class="max-w-4xl mx-auto p-8 card text-center">
+                    <p class="text-lg mb-6 text-gray-600">After this comprehensive process, we have a single, unified dataset. Each row represents a single hour and contains not just the PM2.5 value, but a rich set of features describing the weather, atmospheric chemistry, regional events, and local context. This dataset is now ready to train a sophisticated machine learning model to forecast air quality in Tashkent with high accuracy.</p>
+                    <div class="p-4 bg-gray-800 rounded-lg font-mono text-left text-sm md:text-base overflow-x-auto">
+                        <span class="text-blue-400 font-bold">Columns:</span> <span class="text-gray-300">[PM2.5, O3, O3_is_imputed, boundary_layer_height, wind_speed_10m, wind_dir_10m, temp_celsius, AOD_055, NO2_tropospheric, upwind_fire_intensity, hour, day_of_week, pm25_lag_1h, ..., pm25_lag_24h]</span>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="text-center mt-16 py-6 border-t border-gray-200">
+            <p class="text-gray-500">Project by <a href="https://github.com/durdiev15" class="text-blue-600 hover:underline">Dilshod Durdiev</a>. Page detailing the data cleaning and preprocessing methodology.</p>
+        </footer>
+
+    </div>
+
+    <!-- The Chart.js script is restored -->
+    <script>
+        const tooltipTitleCallback = (tooltipItems) => {
+            const item = tooltipItems[0];
+            let label = item.chart.data.labels[item.dataIndex];
+            if (Array.isArray(label)) {
+                return label.join(' ');
+            } else {
+                return label;
+            }
+        };
+
+        const qualityChartCtx = document.getElementById('qualityFilterChart').getContext('2d');
+        new Chart(qualityChartCtx, {
+            type: 'bar',
+            data: {
+                labels: ['NO₂ Observations', 'Aerosol (AOD) Observations'],
+                datasets: [{
+                    label: 'Before Filtering',
+                    data: [35618, 21951],
+                    backgroundColor: 'rgba(59, 130, 246, 0.5)', // blue-500 with opacity
+                    borderColor: 'rgba(59, 130, 246, 1)', // blue-500
+                    borderWidth: 1
+                }, {
+                    label: 'After Quality Filtering',
+                    data: [18506, 3464],
+                    backgroundColor: 'rgba(17, 24, 39, 0.7)', // gray-900 with opacity
+                    borderColor: 'rgba(17, 24, 39, 1)', // gray-900
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Impact of Quality Filtering on Satellite Data',
+                        font: { size: 16, family: 'Inter' },
+                        color: '#111827' // gray-900
+                    },
+                    tooltip: {
+                        callbacks: { title: tooltipTitleCallback }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Number of Observations' }
+                    }
+                }
+            }
+        });
+
+        const imputationChartCtx = document.getElementById('imputationChart').getContext('2d');
+        const labelsImputation = Array.from({length: 100}, (_, i) => i + 1);
+        const originalO3Data = labelsImputation.map(i => {
+            if (i > 30 && i < 70) return null;
+            return 50 + Math.sin(i / 5) * 20 + Math.random() * 10;
+        });
+        const imputedO3Data = labelsImputation.map((val, i) => {
+            if (i > 30 && i < 70) {
+                 return 50 + Math.sin(i / 5) * 20 + (Math.cos(i/15) * 5);
+            }
+            return originalO3Data[i]; // Show original data where it exists
+        });
+
+        new Chart(imputationChartCtx, {
+            type: 'line',
+            data: {
+                labels: labelsImputation,
+                datasets: [{
+                    label: 'Original O₃ Data',
+                    data: originalO3Data,
+                    borderColor: '#3b82f6', // blue-500
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    spanGaps: false, // This creates the gap
+                }, {
+                    label: 'Seasonally Imputed Data',
+                    data: imputedO3Data,
+                    borderColor: '#9ca3af', // gray-400
+                    borderDash: [5, 5],
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                }]
+            },
+            options: {
+                 responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Example of Filling a Large O₃ Data Gap',
+                        font: { size: 16, family: 'Inter' },
+                        color: '#111827'
+                    },
+                     tooltip: {
+                        callbacks: { title: tooltipTitleCallback }
+                    }
+                },
+                scales: {
+                    y: {
+                        title: { display: true, text: 'Ozone (ppb)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Time (Arbitrary Units)' }
+                    }
+                }
+            }
+        });
+
+        // ** FULLY CORRECTED SCRIPT FOR PM2.5 IMPUTATION PLOT **
+        // Correct, stable URL for the raw CSV file
+        const pm25CsvUrl = 'https://raw.githubusercontent.com/durdiev15/durdiev15.github.io/main/merged_pm25_raw_imputed_data.csv';
+        
+        Papa.parse(pm25CsvUrl, {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                const allData = results.data;
+                
+                // 1. Define the date range for filtering as strings
+                const startDateStr = '2018-12-03';
+                const endDateStr = '2019-12-03';
+
+                const labels = [];
+                const originalPm25 = [];
+                const imputedFill = []; 
+
+                allData.forEach(row => {
+                    // Using bracket notation for column names with dots
+                    if (row.datetime && typeof row.datetime === 'string') {
+                        const dateStr = row.datetime.substring(0, 10); // Get 'YYYY-MM-DD' part
+                        
+                        // 2. Filter data by comparing date strings. This is more robust.
+                        if (dateStr >= startDateStr && dateStr <= endDateStr) {
+                            labels.push(row.datetime); // Use full datetime for tooltip accuracy
+
+                            // ** CORRECTED COLUMN NAME **
+                            const originalValue = (row['PM2.5_original'] === null || row['PM2.5_original'] === '') ? null : row['PM2.5_original'];
+                            originalPm25.push(originalValue);
+
+                            if (originalValue === null) {
+                                // ** CORRECTED COLUMN NAME **
+                                imputedFill.push(row['PM2.5_imputed']);
+                            } else {
+                                imputedFill.push(null);
+                            }
+                        }
+                    }
+                });
+
+                const pm25ImputationCtx = document.getElementById('pm25ImputationChart').getContext('2d');
+                new Chart(pm25ImputationCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Original PM2.5 (with missing)',
+                            data: originalPm25,
+                            borderColor: 'rgba(239, 68, 68, 0.8)', // Red
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            spanGaps: false,
+                        }, {
+                            label: 'After KNN Imputation',
+                            data: imputedFill,
+                            borderColor: 'rgba(59, 130, 246, 0.8)', // Blue
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'PM2.5 Before and After KNN Imputation (Dec 2018)',
+                                font: { size: 16, family: 'Inter' },
+                                color: '#111827'
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                title: { display: true, text: 'PM2.5 (µg/m³)' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Date' },
+                                // Use a callback to format labels to show only the date
+                                ticks: {
+                                    callback: function(value, index, ticks) {
+                                        // 'value' is the index, so we get the label from our data
+                                        const label = this.getLabelForValue(value);
+                                        return label.split(' ')[0]; // Return only the date part
+                                    },
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    autoSkip: true,
+                                    maxTicksLimit: 15 
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+            error: function(error) {
+                console.error("Error fetching or parsing CSV:", error);
+                const ctx = document.getElementById('pm25ImputationChart').getContext('2d');
+                ctx.font = "16px Inter";
+                ctx.fillStyle = "red";
+                ctx.textAlign = "center";
+                ctx.fillText("Error: Could not load chart data.", 150, 100);
+            }
+        });
+
+    </script>
+</body>
+</html>
