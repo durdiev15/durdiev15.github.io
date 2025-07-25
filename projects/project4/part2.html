@@ -245,20 +245,64 @@ df_imputed[<span class="string">'datetime'</span>] = datetime_col.values</code><
             </section>
 
              <section id="final">
-                <h2 class="text-3xl font-bold text-center mb-8 text-gray-900">The Final Features: A Model-Ready Dataset</h2>
+                <h2 class="text-3xl font-bold text-center mb-8">The Final Features: A Model-Ready Dataset</h2>
                 <div class="max-w-4xl mx-auto p-8 card text-center">
                     <p class="text-lg mb-6 text-gray-600">After this comprehensive process, we have a single, unified dataset. Each row represents a single hour and contains not just the PM2.5 value, but a rich set of features describing the weather, atmospheric chemistry, regional events, and local context. This dataset is now ready to train a sophisticated machine learning model to forecast air quality in Tashkent with high accuracy.</p>
                     <div class="p-4 bg-gray-800 rounded-lg font-mono text-left text-sm md:text-base overflow-x-auto">
-                        <span class="text-blue-400 font-bold">Columns:</span> <span class="text-gray-300">['PM2.5', 'O3', 'blh', 'tp', 'z_850.0', 'z_925.0', 'z_1000.0',
-       't2m_celsius', 'd2m_celsius', 'Column_WV', 'FineModeFraction',
-       'Optical_Depth_055', 'tropospheric_NO2_column_number_density',
-       'absorbing_aerosol_index', 'upwind_fire_intensity',
-       'distance_to_nearest_road_m', 'percent_industrial_land',
-       'percent_green_space', 'is_holiday', 'wind_speed_10m',
-       'wind_speed_850hpa', 'wind_dir_10m', 'hour', 'day_of_week', 'month',
-       'temp_lag_1h', 'blh_lag_1h', 'temp_lag_2h', 'blh_lag_2h', 'temp_lag_3h',
-       'blh_lag_3h', 'temp_lag_6h', 'blh_lag_6h', 'temp_lag_12h',
-       'blh_lag_12h', 'temp_lag_24h', 'blh_lag_24h', 'temp_blh_interation']</span>
+                                    <span class="text-blue-400 font-bold">Columns:</span> <span class="text-gray-300">['PM2.5', 'O3', 'blh', 'tp', 'z_850.0', 'z_925.0', 'z_1000.0',
+                't2m_celsius', 'd2m_celsius', 'Column_WV', 'FineModeFraction',
+                'Optical_Depth_055', 'tropospheric_NO2_column_number_density',
+                'absorbing_aerosol_index', 'upwind_fire_intensity',
+                'distance_to_nearest_road_m', 'percent_industrial_land',
+                'percent_green_space', 'is_holiday', 'wind_speed_10m',
+                'wind_speed_850hpa', 'wind_dir_10m', 'hour', 'day_of_week', 'month',
+                'temp_lag_1h', 'blh_lag_1h', 'temp_lag_2h', 'blh_lag_2h', 'temp_lag_3h',
+                'blh_lag_3h', 'temp_lag_6h', 'blh_lag_6h', 'temp_lag_12h',
+                'blh_lag_12h', 'temp_lag_24h', 'blh_lag_24h', 'temp_blh_interation']</span>
+                    </div>
+                    <!-- NEW TABLE SECTION -->
+                    <div class="mt-6 text-left">
+                        <details>
+                            <summary class="cursor-pointer text-blue-600 hover:underline font-semibold inline-flex items-center">
+                                View Feature Descriptions
+                                <svg class="w-4 h-4 ml-2 arrow-down transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </summary>
+                            <div class="mt-4 overflow-hidden rounded-lg border border-gray-200">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Feature</th>
+                                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                                        <tr class="bg-gray-50"><td colspan="2" class="px-4 py-2 font-semibold">Core Variables</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">PM2.5</td><td class="px-4 py-2">The target variable: concentration of fine particulate matter (µg/m³).</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">O3</td><td class="px-4 py-2">Ozone concentration, a key pollutant and chemical precursor.</td></tr>
+                                        <tr class="bg-gray-50"><td colspan="2" class="px-4 py-2 font-semibold">Meteorological Features</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">blh</td><td class="px-4 py-2">Boundary Layer Height (m). Crucial for vertical mixing of pollutants.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">tp</td><td class="px-4 py-2">Total Precipitation (m). Represents the pollution washout effect.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">z_850/925/1000</td><td class="px-4 py-2">Geopotential height at different pressure levels, describing atmospheric pressure systems.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">t2m_celsius</td><td class="px-4 py-2">Air temperature at 2 meters (°C).</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">wind_speed_10m/850hpa</td><td class="px-4 py-2">Wind speed at the surface and 850hPa level for dispersion and transport.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">wind_dir_10m</td><td class="px-4 py-2">Wind direction at 10 meters, indicating the source of transported pollution.</td></tr>
+                                        <tr class="bg-gray-50"><td colspan="2" class="px-4 py-2 font-semibold">Satellite Features</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">Optical_Depth_055</td><td class="px-4 py-2">Aerosol Optical Depth, a proxy for total particulates in the atmospheric column.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">tropospheric_NO2...</td><td class="px-4 py-2">Nitrogen Dioxide column density, a proxy for traffic and industrial emissions.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">absorbing_aerosol_index</td><td class="px-4 py-2">Indicates the presence of light-absorbing aerosols like smoke and soot.</td></tr>
+                                        <tr class="bg-gray-50"><td colspan="2" class="px-4 py-2 font-semibold">Geospatial & Event Features</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">upwind_fire_intensity</td><td class="px-4 py-2">Sum of Fire Radiative Power from upwind fires, indicating smoke transport.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">distance_to_nearest_road_m</td><td class="px-4 py-2">Proximity to traffic emissions.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">percent_industrial_land</td><td class="px-4 py-2">Density of industrial pollution sources in the area.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">is_holiday</td><td class="px-4 py-2">Binary flag for public holidays, affecting human activity patterns.</td></tr>
+                                        <tr class="bg-gray-50"><td colspan="2" class="px-4 py-2 font-semibold">Temporal & Lagged Features</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">hour, day_of_week, month</td><td class="px-4 py-2">Cyclical features to capture diurnal, weekly, and seasonal patterns.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">temp/blh_lag_Xh</td><td class="px-4 py-2">Past values of key variables (e.g., temperature from 1 hour ago) to capture persistence and autocorrelation.</td></tr>
+                                        <tr><td class="px-4 py-2 font-mono">temp_blh_interation</td><td class="px-4 py-2">An interaction feature that captures the combined effect of two variables: <code>temp_blh_interaction = t2m_celsius * blh</code>.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
                     </div>
                 </div>
             </section>
