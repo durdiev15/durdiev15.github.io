@@ -243,7 +243,16 @@ df_imputed[<span class="string">'datetime'</span>] = datetime_col.values</code><
                 <div class="max-w-4xl mx-auto p-8 card text-center">
                     <p class="text-lg mb-6 text-gray-600">After this comprehensive process, we have a single, unified dataset. Each row represents a single hour and contains not just the PM2.5 value, but a rich set of features describing the weather, atmospheric chemistry, regional events, and local context. This dataset is now ready to train a sophisticated machine learning model to forecast air quality in Tashkent with high accuracy.</p>
                     <div class="p-4 bg-gray-800 rounded-lg font-mono text-left text-sm md:text-base overflow-x-auto">
-                        <span class="text-blue-400 font-bold">Columns:</span> <span class="text-gray-300">[PM2.5, O3, O3_is_imputed, boundary_layer_height, wind_speed_10m, wind_dir_10m, temp_celsius, AOD_055, NO2_tropospheric, upwind_fire_intensity, hour, day_of_week, pm25_lag_1h, ..., pm25_lag_24h]</span>
+                        <span class="text-blue-400 font-bold">Columns:</span> <span class="text-gray-300">['PM2.5', 'O3', 'blh', 'tp', 'z_850.0', 'z_925.0', 'z_1000.0',
+       't2m_celsius', 'd2m_celsius', 'Column_WV', 'FineModeFraction',
+       'Optical_Depth_055', 'tropospheric_NO2_column_number_density',
+       'absorbing_aerosol_index', 'upwind_fire_intensity',
+       'distance_to_nearest_road_m', 'percent_industrial_land',
+       'percent_green_space', 'is_holiday', 'wind_speed_10m',
+       'wind_speed_850hpa', 'wind_dir_10m', 'hour', 'day_of_week', 'month',
+       'temp_lag_1h', 'blh_lag_1h', 'temp_lag_2h', 'blh_lag_2h', 'temp_lag_3h',
+       'blh_lag_3h', 'temp_lag_6h', 'blh_lag_6h', 'temp_lag_12h',
+       'blh_lag_12h', 'temp_lag_24h', 'blh_lag_24h', 'temp_blh_interation']</span>
                     </div>
                 </div>
             </section>
