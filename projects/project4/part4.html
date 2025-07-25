@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PM2.5 Forecast: Machine Learning Results</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Style adopted from the Data Acquisition & Cleaning pages for consistency -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 1px solid #e5e7eb;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        
+        <header class="text-center mb-16">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-2">Machine Learning Model Performance</h1>
+            <p class="text-lg md:text-xl text-gray-600">Forecasting PM2.5 in Tashkent</p>
+        </header>
+
+        <main class="space-y-16">
+
+            <section id="models-overview">
+                <h2 class="text-3xl font-bold text-center mb-8">Model Selection Strategy</h2>
+                <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">To ensure a comprehensive evaluation, we tested a range of models. We started with established baseline models to set a performance benchmark and then progressed to advanced deep learning architectures designed to capture the complex temporal dependencies inherent in time-series data.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                    <div class="card text-center">
+                        <h3 class="font-bold text-lg">Linear Regression</h3>
+                        <p class="text-sm text-gray-600 mt-2">A simple, interpretable baseline that models linear relationships between features and the target.</p>
+                    </div>
+                    <div class="card text-center">
+                        <h3 class="font-bold text-lg">Random Forest</h3>
+                        <p class="text-sm text-gray-600 mt-2">An ensemble of decision trees that captures non-linear interactions effectively.</p>
+                    </div>
+                    <div class="card text-center">
+                        <h3 class="font-bold text-lg">XGBoost</h3>
+                        <p class="text-sm text-gray-600 mt-2">A powerful gradient boosting algorithm known for its high performance and speed.</p>
+                    </div>
+                    <div class="card text-center col-span-1 md:col-span-2 lg:col-span-1 bg-blue-50 border-blue-200">
+                        <h3 class="font-bold text-lg text-blue-800">LSTM</h3>
+                        <p class="text-sm text-gray-600 mt-2">A recurrent neural network (RNN) with memory cells, specifically designed for sequential data.</p>
+                    </div>
+                     <div class="card text-center col-span-1 md:col-span-2 lg:col-span-1 bg-blue-50 border-blue-200">
+                        <h3 class="font-bold text-lg text-blue-800">Transformer</h3>
+                        <p class="text-sm text-gray-600 mt-2">An advanced deep learning model using attention mechanisms to weigh the importance of past data points.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="metrics">
+                <h2 class="text-3xl font-bold text-center mb-8">Quantitative Performance Metrics</h2>
+                <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">We evaluated all models using standard regression metrics: Root Mean Squared Error (RMSE), Mean Absolute Error (MAE), and the R-squared (R²) score. The results clearly demonstrate the superior performance of the advanced, sequence-aware models.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-4">Model Comparison: R² Score</h3>
+                        <div class="chart-container">
+                            <canvas id="r2-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-4">Detailed Metrics Table</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RMSE</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MAE</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">R²</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="metrics-table-body" class="bg-white divide-y divide-gray-200 text-sm">
+                                    <!-- Rows will be inserted here by JavaScript -->
+                                    <tr><td colspan="4" class="p-4 text-center text-gray-500">Loading metrics...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="predictions">
+                <h2 class="text-3xl font-bold text-center mb-8">Visualizing Model Predictions</h2>
+                <p class="max-w-3xl mx-auto text-center text-lg mb-10 text-gray-600">A quantitative score only tells part of the story. By plotting the models' predictions against the actual PM2.5 values for a sample period, we can qualitatively assess how well they capture the trends, peaks, and troughs of the real-world data.</p>
+                <div class="space-y-8">
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-4">Baseline Model Predictions vs. Actuals</h3>
+                        <div class="chart-container">
+                            <canvas id="baseline-predictions-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="text-xl font-bold mb-4">Advanced Model Predictions vs. Actuals</h3>
+                        <div class="chart-container">
+                            <canvas id="advanced-predictions-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="text-center mt-20 py-6 border-t border-gray-200">
+            <p class="text-gray-600">This analysis demonstrates the significant performance gains achieved by using advanced deep learning models like LSTM and Transformer, which are better suited for capturing the complex temporal dynamics of air pollution time-series data.</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // Use the correct, stable raw content URLs
+        const metricsUrl = 'https://raw.githubusercontent.com/durdiev15/durdiev15.github.io/main/datasets/ml_metrics.csv';
+        const baselineResultsUrl = 'https://raw.githubusercontent.com/durdiev15/durdiev15.github.io/main/datasets/ml_baseline_results.csv';
+        const advancedResultsUrl = 'https://raw.githubusercontent.com/durdiev15/durdiev15.github.io/main/datasets/ml_advanced_results.csv';
+
+        // Fetch Metrics Data
+        Papa.parse(metricsUrl, {
+            download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+            complete: function(results) {
+                populateMetrics(results.data);
+            }
+        });
+
+        // Fetch Baseline Predictions
+        Papa.parse(baselineResultsUrl, {
+            download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+            complete: function(results) {
+                plotBaselinePredictions(results.data);
+            }
+        });
+
+        // Fetch Advanced Predictions
+        Papa.parse(advancedResultsUrl, {
+            download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+            complete: function(results) {
+                plotAdvancedPredictions(results.data);
+            }
+        });
+
+        function populateMetrics(data) {
+            const tableBody = document.getElementById('metrics-table-body');
+            tableBody.innerHTML = ''; // Clear loading text
+
+            data.forEach(row => {
+                const isAdvanced = ['LSTM', 'Transformer'].includes(row.Model);
+                const tr = document.createElement('tr');
+                if (isAdvanced) {
+                    tr.className = 'bg-blue-50';
+                }
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium ${isAdvanced ? 'text-blue-800' : ''}">${row.Model}</td>
+                    <td class="px-4 py-3">${row.RMSE.toFixed(2)}</td>
+                    <td class="px-4 py-3">${row.MAE.toFixed(2)}</td>
+                    <td class="px-4 py-3 font-semibold">${row.R2.toFixed(3)}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            // Create R² Chart
+            const modelNames = data.map(r => r.Model);
+            const r2Scores = data.map(r => r.R2);
+            const colors = modelNames.map(name => ['LSTM', 'Transformer'].includes(name) ? 'rgba(59, 130, 246, 0.7)' : 'rgba(107, 114, 128, 0.7)');
+
+            new Chart(document.getElementById('r2-chart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: modelNames,
+                    datasets: [{
+                        label: 'R² Score',
+                        data: r2Scores,
+                        backgroundColor: colors,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, title: { display: true, text: 'R² Score (Higher is Better)' } } }
+                }
+            });
+        }
+
+        function plotBaselinePredictions(data) {
+            // Plot a sample (e.g., first week = 168 hours)
+            const sampleData = data.slice(0, 168);
+            const labels = sampleData.map(r => r.Datetime);
+
+            new Chart(document.getElementById('baseline-predictions-chart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Actual PM2.5', data: sampleData.map(r => r['Actual Linear Regression']), borderColor: '#111827', borderWidth: 2.5, pointRadius: 0 },
+                        { label: 'Linear Regression', data: sampleData.map(r => r['Predicted Linear Regression']), borderColor: 'rgba(239, 68, 68, 0.7)', borderWidth: 1.5, pointRadius: 0, borderDash: [5, 5] },
+                        { label: 'Random Forest', data: sampleData.map(r => r['Predicted Random Forest']), borderColor: 'rgba(16, 185, 129, 0.7)', borderWidth: 1.5, pointRadius: 0, borderDash: [5, 5] },
+                        { label: 'XGBoost', data: sampleData.map(r => r['Predicted XGBoost']), borderColor: 'rgba(245, 158, 11, 0.7)', borderWidth: 1.5, pointRadius: 0, borderDash: [5, 5] }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { title: { display: true, text: 'PM2.5 (µg/m³)' } }, x: { type: 'time', time: { unit: 'day' }, title: { display: true, text: 'Date (2025)' } } } }
+            });
+        }
+
+        function plotAdvancedPredictions(data) {
+            // Plot a sample (e.g., first week = 168 hours)
+            const sampleData = data.slice(0, 168);
+            const labels = sampleData.map(r => r.Datetime);
+
+            new Chart(document.getElementById('advanced-predictions-chart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Actual PM2.5', data: sampleData.map(r => r['Actual LSTM']), borderColor: '#111827', borderWidth: 2.5, pointRadius: 0 },
+                        { label: 'LSTM', data: sampleData.map(r => r['Predicted LSTM']), borderColor: 'rgba(59, 130, 246, 0.8)', borderWidth: 2, pointRadius: 0 },
+                        { label: 'Transformer', data: sampleData.map(r => r['Predicted Transformer']), borderColor: 'rgba(139, 92, 246, 0.8)', borderWidth: 2, pointRadius: 0, borderDash: [3, 3] }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { title: { display: true, text: 'PM2.5 (µg/m³)' } }, x: { type: 'time', time: { unit: 'day' }, title: { display: true, text: 'Date  (2025)' } } } }
+            });
+        }
+
+    </script>
+</body>
+</html>
