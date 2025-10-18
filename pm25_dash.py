@@ -67,7 +67,7 @@ app.layout = html.Div(style={'backgroundColor': COLORS['background'], 'color': C
     html.Div(
         style={'backgroundColor': COLORS['header'], 'padding': '20px', 'borderBottom': f'1px solid {COLORS["border"]}'},
         children=[
-            html.H1('PM2.5 Air Quality Forecasting: An Interactive Analysis Dashboard', style={'textAlign': 'center', 'margin': '0', 'color': '#2C3E50'})#,
+            html.H1('PM2.5 Air Quality Forecasting for Tashkent: An Interactive Analysis Dashboard', style={'textAlign': 'center', 'margin': '0', 'color': '#2C3E50'})#,
             #html.H2('Author: Dilshod Durdiev', style={'textAlign': 'center', 'margin': '0', 'fontWeight': '400', 'fontSize': '1.2em', 'color': '#7F8C8D'})
         ]
     ),
@@ -370,4 +370,5 @@ def update_results_graph(selected_model, start_date, end_date):
 # --- 5. Main Execution Block ---
 if __name__ == '__main__':
     app.run(debug=True)
+
 
